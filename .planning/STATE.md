@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-server-auth-02-PLAN.md
-last_updated: "2026-04-14T23:24:58.747Z"
+stopped_at: Completed 01-server-auth-03-PLAN.md
+last_updated: "2026-04-14T23:26:05.517Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 01 (server-auth) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: 3 of 11
 *Updated after each plan completion*
 | Phase 01-server-auth P01 | 4 | 3 tasks | 12 files |
 | Phase 01-server-auth P02 | 3 | 2 tasks | 8 files |
+| Phase 01-server-auth P03 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 01-server-auth]: pytest запускается из корня проекта (python -m pytest server/tests/), не из server/
 - [Phase 01-server-auth]: Alembic использует sync URL (без +aiosqlite) отдельно от async engine приложения
 - [Phase 01-server-auth]: Task.id без server default — UUID генерирует клиент (ключевой SYNC-паттерн Фазы 2)
+- [Phase 01-server-auth]: allowed_usernames объявлена как str с alias+property чтобы обойти JSON-декодирование List[str] в pydantic-settings v2
+- [Phase 01-server-auth]: engine singleton ленивый (_engine_singleton=None) — импорт engine.py не требует env vars
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-14T23:24:58.742Z
-Stopped at: Completed 01-server-auth-02-PLAN.md
+Last session: 2026-04-14T23:26:05.511Z
+Stopped at: Completed 01-server-auth-03-PLAN.md
 Resume file: None
