@@ -1,0 +1,18 @@
+# Конфигурация pytest для серверной части Личного Еженедельника.
+# Для сборки пакета не используется — сервер деплоится как git checkout + venv.
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "integration: integration tests (могут быть медленнее)",
+    "unit: быстрые unit-тесты",
+]
