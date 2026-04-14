@@ -10,10 +10,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Authentication (AUTH)
 
 - [ ] **AUTH-01**: Пользователь может запросить код авторизации через Telegram (ввод username в клиенте → бот присылает 6-значный код)
-- [ ] **AUTH-02**: Пользователь может ввести полученный код и получить JWT (access + refresh)
-- [ ] **AUTH-03**: JWT хранится в keyring (Windows Credential Manager) между запусками приложения
-- [ ] **AUTH-04**: Клиент автоматически обновляет access-token через refresh-token при истечении
-- [ ] **AUTH-05**: Пользователь может разлогиниться через tray-меню (очистка keyring и локального кеша)
+- [x] **AUTH-02**: Пользователь может ввести полученный код и получить JWT (access + refresh)
+- [x] **AUTH-03**: JWT хранится в keyring (Windows Credential Manager) между запусками приложения
+- [x] **AUTH-04**: Клиент автоматически обновляет access-token через refresh-token при истечении
+- [x] **AUTH-05**: Пользователь может разлогиниться через tray-меню (очистка keyring и локального кеша)
 
 ### Server + Data (SRV)
 
@@ -159,10 +159,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
+| AUTH-05 | Phase 1 | Complete |
 | SRV-01 | Phase 1 | Pending |
 | SRV-02 | Phase 1 | Pending |
 | SRV-03 | Phase 1 | Complete |
