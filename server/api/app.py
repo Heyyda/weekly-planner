@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from server.api.auth_routes import router as auth_router
+from server.api.misc_routes import router as misc_router
 from server.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -75,4 +76,6 @@ app = FastAPI(
 app.include_router(auth_router)
 
 # Sync endpoint подключается в Plan 07: app.include_router(sync_router)
-# Health + version + rate-limit подключаются в Plan 08: app.include_router(health_router)
+
+# Health + version endpoints (Plan 08)
+app.include_router(misc_router)
