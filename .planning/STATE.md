@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-server-auth-04-PLAN.md
-last_updated: "2026-04-14T23:32:18.558Z"
+stopped_at: Completed 01-server-auth-05-PLAN.md
+last_updated: "2026-04-14T23:34:09.328Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 01 (server-auth) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: 5 of 11
 | Phase 01-server-auth P02 | 3 | 2 tasks | 8 files |
 | Phase 01-server-auth P03 | 4 | 2 tasks | 4 files |
 | Phase 01-server-auth P04 | 4 | 3 tasks | 6 files |
+| Phase 01-server-auth P05 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 01-server-auth]: engine singleton ленивый (_engine_singleton=None) — импорт engine.py не требует env vars
 - [Phase 01-server-auth]: PyJWT вместо python-jose (abandoned): раздельные секреты для access и refresh (D-14), SHA256 для refresh hash
 - [Phase 01-server-auth]: HTTPBearer(auto_error=False) для контроля формата ошибок D-18 в get_current_user dependency
+- [Phase 01-server-auth]: bcrypt используется напрямую вместо passlib (passlib 1.7.4 несовместима с bcrypt 5.x)
+- [Phase 01-server-auth]: SQLite naive datetime нормализуется к UTC в verify_code через replace(tzinfo=utc)
+- [Phase 01-server-auth]: created_at в AuthCode передаётся явно из Python для microsecond-precision порядка записей
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-14T23:32:18.553Z
-Stopped at: Completed 01-server-auth-04-PLAN.md
+Last session: 2026-04-14T23:34:09.323Z
+Stopped at: Completed 01-server-auth-05-PLAN.md
 Resume file: None

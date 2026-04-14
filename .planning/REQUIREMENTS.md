@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Authentication (AUTH)
 
-- [ ] **AUTH-01**: Пользователь может запросить код авторизации через Telegram (ввод username в клиенте → бот присылает 6-значный код)
+- [x] **AUTH-01**: Пользователь может запросить код авторизации через Telegram (ввод username в клиенте → бот присылает 6-значный код)
 - [x] **AUTH-02**: Пользователь может ввести полученный код и получить JWT (access + refresh)
 - [x] **AUTH-03**: JWT хранится в keyring (Windows Credential Manager) между запусками приложения
 - [x] **AUTH-04**: Клиент автоматически обновляет access-token через refresh-token при истечении
@@ -17,7 +17,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Server + Data (SRV)
 
-- [ ] **SRV-01**: REST API `/auth/request-code`, `/auth/verify`, `/auth/refresh` — Telegram-авторизация с кодом
+- [x] **SRV-01**: REST API `/auth/request-code`, `/auth/verify`, `/auth/refresh` — Telegram-авторизация с кодом
 - [ ] **SRV-02**: REST API `/sync` — delta-синхронизация по `since` timestamp с soft-delete (tombstones)
 - [x] **SRV-03**: SQLite с WAL-режимом и `busy_timeout=5000` для безопасной параллельной записи от нескольких клиентов
 - [x] **SRV-04**: Модели данных: `User`, `Task` (с UUID id, `deleted_at`, `updated_at`), `AuthCode`, `Session`
@@ -158,12 +158,12 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Complete |
 | AUTH-05 | Phase 1 | Complete |
-| SRV-01 | Phase 1 | Pending |
+| SRV-01 | Phase 1 | Complete |
 | SRV-02 | Phase 1 | Pending |
 | SRV-03 | Phase 1 | Complete |
 | SRV-04 | Phase 1 | Complete |
