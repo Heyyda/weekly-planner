@@ -1,0 +1,7 @@
+Alembic миграции для Личного Еженедельника.
+
+Создать новую миграцию:  cd server && alembic revision -m "описание"
+Применить:               cd server && alembic upgrade head
+Откатить на одну:        cd server && alembic downgrade -1
+
+На VPS миграции применяются в deploy-скрипте (см. Plan 10).
