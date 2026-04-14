@@ -36,7 +36,20 @@
 
 **Research flags**: Нет (сервер без риска — паттерн из E-bot, stack zafixirован)
 
-**Plans**: TBD
+**Plans:** 11 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wave 0: тестовая инфраструктура (pytest, conftest, requirements-dev), структура server/{api,auth,db,bot}
+- [ ] 01-02-PLAN.md — Wave 1: SQLAlchemy модели (User, AuthCode, Session, Task) + Alembic первая миграция — SRV-04, SRV-06
+- [ ] 01-03-PLAN.md — Wave 1: async engine + PRAGMA WAL/busy_timeout event + pydantic-settings config — SRV-03
+- [ ] 01-04-PLAN.md — Wave 2: JWT (PyJWT) + SessionService + get_current_user dependency — AUTH-02..05
+- [ ] 01-05-PLAN.md — Wave 2: AuthCodeService (bcrypt hash, single-use) + Telegram send via httpx — AUTH-01, SRV-01
+- [ ] 01-06-PLAN.md — Wave 3: 5 auth endpoints (request-code, verify, refresh, logout, me) + FastAPI app — AUTH-01..05, SRV-01
+- [ ] 01-07-PLAN.md — Wave 3: POST /api/sync (delta + tombstones) — SRV-02, SRV-06
+- [ ] 01-08-PLAN.md — Wave 3: GET /api/health + /version + rate-limit через slowapi — SRV-01
+- [ ] 01-09-PLAN.md — Wave 4: aiogram /start handler (запись chat_id) — AUTH-01
+- [ ] 01-10-PLAN.md — Wave 5: deploy на VPS (systemd, reverse-proxy, env, runbook, checkpoint) — SRV-05
+- [ ] 01-11-PLAN.md — Wave 5: e2e integration test + smoke-test.sh + final ROADMAP verify checkpoint
 
 ---
 
