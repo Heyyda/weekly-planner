@@ -20,9 +20,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **SRV-01**: REST API `/auth/request-code`, `/auth/verify`, `/auth/refresh` — Telegram-авторизация с кодом
 - [ ] **SRV-02**: REST API `/sync` — delta-синхронизация по `since` timestamp с soft-delete (tombstones)
 - [ ] **SRV-03**: SQLite с WAL-режимом и `busy_timeout=5000` для безопасной параллельной записи от нескольких клиентов
-- [ ] **SRV-04**: Модели данных: `User`, `Task` (с UUID id, `deleted_at`, `updated_at`), `AuthCode`, `Session`
+- [x] **SRV-04**: Модели данных: `User`, `Task` (с UUID id, `deleted_at`, `updated_at`), `AuthCode`, `Session`
 - [ ] **SRV-05**: FastAPI deployed на VPS 109.94.211.29 как отдельный systemd-юнит рядом с E-bot
-- [ ] **SRV-06**: API отдаёт согласованные timestamp'ы (server-side `updated_at` — source of truth)
+- [x] **SRV-06**: API отдаёт согласованные timestamp'ы (server-side `updated_at` — source of truth)
 
 ### Client Storage + Sync (SYNC)
 
@@ -166,9 +166,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SRV-01 | Phase 1 | Pending |
 | SRV-02 | Phase 1 | Pending |
 | SRV-03 | Phase 1 | Pending |
-| SRV-04 | Phase 1 | Pending |
+| SRV-04 | Phase 1 | Complete |
 | SRV-05 | Phase 1 | Pending |
-| SRV-06 | Phase 1 | Pending |
+| SRV-06 | Phase 1 | Complete |
 | SYNC-01 | Phase 2 | Pending |
 | SYNC-02 | Phase 2 | Pending |
 | SYNC-03 | Phase 2 | Pending |
