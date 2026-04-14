@@ -36,10 +36,10 @@
 
 **Research flags**: Нет (сервер без риска — паттерн из E-bot, stack zafixirован)
 
-**Plans:** 11 plans
+**Plans:** 1/11 plans executed
 
 Plans:
-- [ ] 01-01-PLAN.md — Wave 0: тестовая инфраструктура (pytest, conftest, requirements-dev), структура server/{api,auth,db,bot}
+- [x] 01-01-PLAN.md — Wave 0: тестовая инфраструктура (pytest, conftest, requirements-dev), структура server/{api,auth,db,bot}
 - [ ] 01-02-PLAN.md — Wave 1: SQLAlchemy модели (User, AuthCode, Session, Task) + Alembic первая миграция — SRV-04, SRV-06
 - [ ] 01-03-PLAN.md — Wave 1: async engine + PRAGMA WAL/busy_timeout event + pydantic-settings config — SRV-03
 - [ ] 01-04-PLAN.md — Wave 2: JWT (PyJWT) + SessionService + get_current_user dependency — AUTH-02..05
@@ -173,7 +173,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Сервер и авторизация | 0/? | Not started | - |
+| 1. Сервер и авторизация | 1/11 | In Progress|  |
 | 2. Клиентское ядро | 0/? | Not started | - |
 | 3. Оверлей и системная интеграция | 0/? | Not started | - |
 | 4. Недельный вид и задачи | 0/? | Not started | - |

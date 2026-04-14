@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-04-14T20:02:02.598Z"
-last_activity: 2026-04-14 — Roadmap создан, фазы определены
+status: unknown
+stopped_at: Completed 01-server-auth-01-PLAN.md
+last_updated: "2026-04-14T23:19:34.343Z"
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 11
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Быстро записать задачу "в моменте" и не забыть её — даже между двумя PC и телефоном. Speed-of-capture — единственная метрика, которая имеет значение.
-**Current focus:** Фаза 1 — Сервер и авторизация
+**Current focus:** Phase 01 — server-auth
 
 ## Current Position
 
-Phase: 1 of 6 (Сервер и авторизация)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-14 — Roadmap создан, фазы определены
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (server-auth) — EXECUTING
+Plan: 2 of 11
 
 ## Performance Metrics
 
@@ -52,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-server-auth P01 | 4 | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -64,6 +59,8 @@ Recent decisions affecting current work:
 - Roadmap: DnD (TASK-05, TASK-06) — высокий риск, требует phase-research перед Фазой 4
 - Roadmap: Фазы 3 и 4 требуют `/gsd:ui-phase` до планирования
 - Stack: python-jose заменить на PyJWT; keyboard заменить на pynput (см. research/STACK.md)
+- [Phase 01-server-auth]: Wave 0: плоские server/*.py файлы не удаляются — остаются до Plan 06 (endpoints)
+- [Phase 01-server-auth]: pytest запускается из корня проекта (python -m pytest server/tests/), не из server/
 
 ### Pending Todos
 
@@ -79,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-14T20:02:02.595Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-server-auth/01-CONTEXT.md
+Last session: 2026-04-14T23:19:34.337Z
+Stopped at: Completed 01-server-auth-01-PLAN.md
+Resume file: None
