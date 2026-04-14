@@ -122,6 +122,10 @@ Timezone awareness в `session.expires_at`: SQLite возвращает naive da
 
 None — все функции полностью реализованы и протестированы.
 
+## Self-Check: PASSED
+
+All files confirmed present. All 3 task commits verified in git log.
+
 ## Next Phase Readiness
 
 - Plan 05 (auth-code + Telegram): server/auth/codes.py и telegram.py — независимы от этого плана
