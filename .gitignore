@@ -33,3 +33,24 @@ local_cache.json
 
 # PyInstaller
 *.manifest
+*.exe
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite журналы
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Дополнительные секреты
+.env.production
+*.env
+!.env.example
+
+# IDE
+*.swo
