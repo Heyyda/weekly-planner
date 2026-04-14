@@ -158,22 +158,70 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 .. AUTH-05 | TBD | Pending |
-| SRV-01 .. SRV-06 | TBD | Pending |
-| SYNC-01 .. SYNC-08 | TBD | Pending |
-| OVR-01 .. OVR-06 | TBD | Pending |
-| WEEK-01 .. WEEK-06 | TBD | Pending |
-| TASK-01 .. TASK-07 | TBD | Pending |
-| TRAY-01 .. TRAY-04 | TBD | Pending |
-| NOTIF-01 .. NOTIF-04 | TBD | Pending |
-| BOT-01 .. BOT-06 | TBD | Pending |
-| DIST-01 .. DIST-06 | TBD | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| SRV-01 | Phase 1 | Pending |
+| SRV-02 | Phase 1 | Pending |
+| SRV-03 | Phase 1 | Pending |
+| SRV-04 | Phase 1 | Pending |
+| SRV-05 | Phase 1 | Pending |
+| SRV-06 | Phase 1 | Pending |
+| SYNC-01 | Phase 2 | Pending |
+| SYNC-02 | Phase 2 | Pending |
+| SYNC-03 | Phase 2 | Pending |
+| SYNC-04 | Phase 2 | Pending |
+| SYNC-05 | Phase 2 | Pending |
+| SYNC-06 | Phase 2 | Pending |
+| SYNC-07 | Phase 2 | Pending |
+| SYNC-08 | Phase 2 | Pending |
+| OVR-01 | Phase 3 | Pending |
+| OVR-02 | Phase 3 | Pending |
+| OVR-03 | Phase 3 | Pending |
+| OVR-04 | Phase 3 | Pending |
+| OVR-05 | Phase 3 | Pending |
+| OVR-06 | Phase 3 | Pending |
+| TRAY-01 | Phase 3 | Pending |
+| TRAY-02 | Phase 3 | Pending |
+| TRAY-03 | Phase 3 | Pending |
+| TRAY-04 | Phase 3 | Pending |
+| NOTIF-01 | Phase 3 | Pending |
+| NOTIF-02 | Phase 3 | Pending |
+| NOTIF-03 | Phase 3 | Pending |
+| NOTIF-04 | Phase 3 | Pending |
+| WEEK-01 | Phase 4 | Pending |
+| WEEK-02 | Phase 4 | Pending |
+| WEEK-03 | Phase 4 | Pending |
+| WEEK-04 | Phase 4 | Pending |
+| WEEK-05 | Phase 4 | Pending |
+| WEEK-06 | Phase 4 | Pending |
+| TASK-01 | Phase 4 | Pending |
+| TASK-02 | Phase 4 | Pending |
+| TASK-03 | Phase 4 | Pending |
+| TASK-04 | Phase 4 | Pending |
+| TASK-05 | Phase 4 | Pending |
+| TASK-06 | Phase 4 | Pending |
+| TASK-07 | Phase 4 | Pending |
+| BOT-01 | Phase 5 | Pending |
+| BOT-02 | Phase 5 | Pending |
+| BOT-03 | Phase 5 | Pending |
+| BOT-04 | Phase 5 | Pending |
+| BOT-05 | Phase 5 | Pending |
+| BOT-06 | Phase 5 | Pending |
+| DIST-01 | Phase 6 | Pending |
+| DIST-02 | Phase 6 | Pending |
+| DIST-03 | Phase 6 | Pending |
+| DIST-04 | Phase 6 | Pending |
+| DIST-05 | Phase 6 | Pending |
+| DIST-06 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 55 total
-- Mapped to phases: 0 (populated by roadmapper)
-- Unmapped: 55 ⚠️ (expected until roadmap)
+- v1 requirements: 58 enumerated (header said 55; actual count from requirement IDs is 58)
+- Mapped to phases: 58
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-14*
-*Last updated: 2026-04-14 after initialization*
+*Last updated: 2026-04-14 — traceability populated by roadmapper*
