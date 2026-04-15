@@ -51,6 +51,12 @@ htmlcov/
 .env.production
 *.env
 !.env.example
+!server/.env.example
+
+# SQLite база данных (не коммитим данные БД)
+weekly_planner.db
+weekly_planner.db-wal
+weekly_planner.db-shm
 
 # IDE
 *.swo
