@@ -19,8 +19,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from slowapi.errors import RateLimitExceeded
+
 from server.api.auth_routes import router as auth_router
 from server.api.misc_routes import router as misc_router
+from server.api.rate_limit import limiter, rate_limit_exceeded_handler
+from server.api.sync_routes import router as sync_router
 from server.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -72,10 +76,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiter (Plan 08) — нужно задать ДО include_router
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # Auth endpoints (Фаза 1, Plan 06)
 app.include_router(auth_router)
 
-# Sync endpoint подключается в Plan 07: app.include_router(sync_router)
+# Sync endpoint (Plan 07)
+app.include_router(sync_router)
 
 # Health + version endpoints (Plan 08)
 app.include_router(misc_router)
