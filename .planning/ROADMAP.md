@@ -69,7 +69,17 @@ Plans:
 
 **Research flags**: Нет (паттерны operation queue + tombstone описаны в research/ARCHITECTURE.md)
 
-**Plans**: TBD
+**Plans:** 8 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Wave 0: pytest-инфраструктура (conftest, pyproject, requirements-dev, fixtures tmp_appdata + mock_api)
+- [ ] 02-02-PLAN.md — Wave 1: client/core/models.py (Task + TaskChange + utcnow_iso) + paths.py + config.py — SYNC-06
+- [ ] 02-03-PLAN.md — Wave 1: logging_setup с RotatingFileHandler + SecretFilter (D-27, D-29)
+- [ ] 02-04-PLAN.md — Wave 2: AuthManager rewrite (правильные endpoints, keyring rotation, threading.Lock)
+- [ ] 02-05-PLAN.md — Wave 2: LocalStorage rewrite (Lock + atomic write + drain + soft-delete + merge) — SYNC-01,02,04,08
+- [ ] 02-06-PLAN.md — Wave 3: SyncApiClient (auth + 401-retry + exponential backoff) — SYNC-06
+- [ ] 02-07-PLAN.md — Wave 3: SyncManager rewrite (Event wake + stale detection + tombstone cleanup) — SYNC-03,05,07
+- [ ] 02-08-PLAN.md — Wave 4: E2E integration tests + log-safety verification — SYNC-01..08
 
 ---
 
@@ -174,7 +184,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Сервер и авторизация | 11/11 | Complete    | 2026-04-15 |
-| 2. Клиентское ядро | 0/? | Not started | - |
+| 2. Клиентское ядро | 0/8 | Not started | - |
 | 3. Оверлей и системная интеграция | 0/? | Not started | - |
 | 4. Недельный вид и задачи | 0/? | Not started | - |
 | 5. Telegram-бот | 0/? | Not started | - |
