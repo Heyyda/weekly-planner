@@ -18,11 +18,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api import errors as err
+from server.api.rate_limit import limiter
 from server.api.schemas import (
     AccessTokenOut,
     LogoutIn,
@@ -53,7 +54,12 @@ def _now_msk_str() -> str:
 
 
 @router.post("/request-code", response_model=RequestCodeOut)
-async def request_code(body: RequestCodeIn, db: AsyncSession = Depends(get_db)):
+@limiter.limit("1/minute;5/hour")  # CONTEXT.md D-09
+async def request_code(
+    request: Request,  # нужен slowapi для получения IP адреса
+    body: RequestCodeIn,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Шаг 1: пользователь ввёл username → мы шлём 6-значный код в Telegram.
 
