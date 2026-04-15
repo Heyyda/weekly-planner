@@ -83,6 +83,8 @@ async def app_client(monkeypatch, tmp_path):
 
     # Импортируем app после override env vars
     from server.api.app import app
+    from server.api.rate_limit import limiter
+    limiter.reset()  # Сброс rate-limit состояния между тестами (Plan 08 добавил ограничение)
     app.dependency_overrides[get_db] = override_get_db
 
     # Предзаполнить пользователя nikita с chat_id (чтобы Telegram мог отправить код)
@@ -96,6 +98,7 @@ async def app_client(monkeypatch, tmp_path):
             yield ac, sent_codes, factory
     finally:
         app.dependency_overrides.clear()
+        limiter.reset()
         await engine.dispose()
 
 
@@ -368,6 +371,10 @@ async def test_logout_with_specific_refresh_token(app_client):
     )
     access1 = r2.json()["access_token"]
     refresh1 = r2.json()["refresh_token"]
+
+    # Сбросить rate-limit чтобы второй request-code (другое устройство) прошёл
+    from server.api.rate_limit import limiter
+    limiter.reset()
 
     # Вторая сессия (устройство 2 — тот же user, новый код)
     r3 = await ac.post(
