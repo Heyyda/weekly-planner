@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-server-auth-01-06-PLAN.md
-last_updated: "2026-04-14T23:41:15.659Z"
+stopped_at: Completed 01-server-auth-01-09-PLAN.md
+last_updated: "2026-04-15T05:35:45.345Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 01 (server-auth) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 7 of 11
 | Phase 01-server-auth P04 | 4 | 3 tasks | 6 files |
 | Phase 01-server-auth P05 | 5 | 2 tasks | 4 files |
 | Phase 01-server-auth P06 | 263 | 3 tasks | 6 files |
+| Phase 01-server-auth P09 | 141 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 01-server-auth]: SQLite naive datetime нормализуется к UTC в verify_code через replace(tzinfo=utc)
 - [Phase 01-server-auth]: created_at в AuthCode передаётся явно из Python для microsecond-precision порядка записей
 - [Phase 01-server-auth]: tzdata добавлен в requirements.txt для ZoneInfo('Europe/Moscow') на Windows
+- [Phase 01-server-auth]: object.__setattr__ для патчинга frozen aiogram Message в тестах (pydantic frozen model)
+- [Phase 01-server-auth]: Long-polling (dp.start_polling) выбран для Фазы 1 — проще для VPS без настроенного webhook endpoint
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-14T23:41:15.653Z
-Stopped at: Completed 01-server-auth-01-06-PLAN.md
+Last session: 2026-04-15T05:35:45.342Z
+Stopped at: Completed 01-server-auth-01-09-PLAN.md
 Resume file: None
