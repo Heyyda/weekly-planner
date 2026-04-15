@@ -57,6 +57,14 @@ async def handle_start(message: Message) -> None:
     Идемпотентно — повторный /start просто обновляет chat_id (на случай
     смены Telegram-клиента или restore с другого устройства).
     """
+    # Логируем каждую попытку /start (включая rejected) для мониторинга через journalctl
+    logger.info(
+        "/start received: chat_id=%s from_user_id=%s username=%s",
+        getattr(message.chat, "id", None),
+        getattr(message.from_user, "id", None) if message.from_user else None,
+        (message.from_user.username if message.from_user else None),
+    )
+
     tg_user = message.from_user
     if tg_user is None:
         logger.warning("Получен /start без from_user — игнорируем")
