@@ -1,0 +1,27 @@
+[Unit]
+Description=Личный Еженедельник Bot (aiogram long-polling)
+Documentation=https://github.com/Heyyda/weekly-planner
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=planner
+Group=planner
+WorkingDirectory=/opt/planner
+EnvironmentFile=/etc/planner/planner.env
+ExecStart=/opt/planner/venv/bin/python -m server.bot.main
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=planner-bot
+
+# Безопасность: ограничиваем доступ к файловой системе
+ReadWritePaths=/var/lib/planner
+ReadOnlyPaths=/opt/planner /etc/planner
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
