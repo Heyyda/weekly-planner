@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-server-auth-01-09-PLAN.md
-last_updated: "2026-04-15T05:35:45.345Z"
+stopped_at: Completed 01-server-auth-01-08-PLAN.md
+last_updated: "2026-04-15T05:42:05.273Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 9
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 01 (server-auth) — EXECUTING
-Plan: 8 of 11
+Plan: 10 of 11
 
 ## Performance Metrics
 
@@ -53,6 +53,8 @@ Plan: 8 of 11
 | Phase 01-server-auth P05 | 5 | 2 tasks | 4 files |
 | Phase 01-server-auth P06 | 263 | 3 tasks | 6 files |
 | Phase 01-server-auth P09 | 141 | 2 tasks | 3 files |
+| Phase 01-server-auth P07 | 35 | 3 tasks | 4 files |
+| Phase 01-server-auth P08 | 30 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -79,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 01-server-auth]: tzdata добавлен в requirements.txt для ZoneInfo('Europe/Moscow') на Windows
 - [Phase 01-server-auth]: object.__setattr__ для патчинга frozen aiogram Message в тестах (pydantic frozen model)
 - [Phase 01-server-auth]: Long-polling (dp.start_polling) выбран для Фазы 1 — проще для VPS без настроенного webhook endpoint
+- [Phase 01-server-auth]: Idempotent CREATE в sync: повторный task_id трактуется как UPDATE, не ошибка — клиент может не знать дошёл ли первый CREATE
+- [Phase 01-server-auth]: Rate-limit по IP (не username): slowapi key_func синхронный, не может читать async body() — RuntimeError: body read twice (RESEARCH.md Pitfall 6)
+- [Phase 01-server-auth]: limiter.reset() в каждом тестовом fixture который вызывает /request-code — slowapi limiter глобальный синглтон, без reset состояние между тестами ломает 429-логику
 
 ### Pending Todos
 
@@ -94,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T05:35:45.342Z
-Stopped at: Completed 01-server-auth-01-09-PLAN.md
+Last session: 2026-04-15T05:42:05.271Z
+Stopped at: Completed 01-server-auth-01-08-PLAN.md
 Resume file: None
