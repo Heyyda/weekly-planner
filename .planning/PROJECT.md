@@ -12,9 +12,18 @@
 
 ### Validated
 
-<!-- Skeleton существует, но ничего не работает и не подтверждено. -->
+<!-- Shipped and confirmed working. -->
 
-(None yet — скелет создан, функциональности нет)
+**Сервер (Phase 1 complete 2026-04-15):**
+- ✓ FastAPI + SQLite (WAL + busy_timeout=5000) развёрнут на VPS 109.94.211.29 — `planner-api.service` + `planner-bot.service` активны и автозапускаются
+- ✓ Reverse-proxy через Traefik → `https://planner.heyda.ru` (TLS auto-ACME)
+- ✓ REST API: `/api/auth/{request-code,verify,refresh,logout,me}`, `/api/sync` (delta + tombstones + server-wins), `/api/health`, `/api/version`
+- ✓ Telegram JWT-авторизация: 6-значный код → PyJWT access (15мин) + refresh (30д rolling)
+- ✓ aiogram 3.x `/start` handler захватывает `chat_id` для доставки кодов
+- ✓ Rate-limit через slowapi (1/мин + 5/час per IP) на `/auth/request-code`
+- ✓ Allow-list пользователей через `ALLOWED_USERNAMES` env
+- ✓ 92 pytest (unit + integration + E2E), 5/5 smoke-tests на проде
+- ⚠ Soft-unverified (отложено): реальная доставка Telegram-кода самопроверится при первой авторизации Phase 2-3; VPS-reboot survival при следующем плановом обслуживании
 
 ### Active
 
@@ -41,11 +50,6 @@
 - [ ] Настраиваемые уведомления (пульсация / Windows toast / тихо)
 - [ ] Автозапуск Windows (опциональный тоггл)
 - [ ] Один .exe через PyInstaller
-
-**Сервер (FastAPI на VPS 109.94.211.29):**
-- [ ] REST API для задач (CRUD + sync)
-- [ ] SQLite БД (`weekly_planner.db`)
-- [ ] JWT авторизация через Telegram (паттерн из E-bot)
 
 **Синхронизация:**
 - [ ] Optimistic UI: локальный кеш + фоновый sync
@@ -131,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after initialization*
+*Last updated: 2026-04-16 after Phase 1 completion — server live at planner.heyda.ru*
