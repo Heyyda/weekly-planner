@@ -36,7 +36,7 @@
 
 **Research flags**: Нет (сервер без риска — паттерн из E-bot, stack zafixirован)
 
-**Plans:** 9/11 plans executed
+**Plans:** 10/11 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Wave 0: тестовая инфраструктура (pytest, conftest, requirements-dev), структура server/{api,auth,db,bot}
@@ -48,7 +48,7 @@ Plans:
 - [x] 01-07-PLAN.md — Wave 3: POST /api/sync (delta + tombstones) — SRV-02, SRV-06
 - [x] 01-08-PLAN.md — Wave 3: GET /api/health + /version + rate-limit через slowapi — SRV-01
 - [x] 01-09-PLAN.md — Wave 4: aiogram /start handler (запись chat_id) — AUTH-01
-- [ ] 01-10-PLAN.md — Wave 5: deploy на VPS (systemd, reverse-proxy, env, runbook, checkpoint) — SRV-05
+- [x] 01-10-PLAN.md — Wave 5: deploy на VPS (systemd, reverse-proxy, env, runbook, checkpoint) — SRV-05
 - [ ] 01-11-PLAN.md — Wave 5: e2e integration test + smoke-test.sh + final ROADMAP verify checkpoint
 
 ---
@@ -173,7 +173,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Сервер и авторизация | 9/11 | In Progress|  |
+| 1. Сервер и авторизация | 10/11 | In Progress|  |
 | 2. Клиентское ядро | 0/? | Not started | - |
 | 3. Оверлей и системная интеграция | 0/? | Not started | - |
 | 4. Недельный вид и задачи | 0/? | Not started | - |
