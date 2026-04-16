@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-07-PLAN.md (SyncManager rewrite)
-last_updated: "2026-04-16T04:08:15.272Z"
+stopped_at: Completed 02-08-PLAN.md (E2E integration tests + log safety — Phase 2 DONE)
+last_updated: "2026-04-16T04:14:00.323Z"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -62,6 +62,7 @@ Plan: 8 of 8
 | Phase 02-client-core P05 | 8 | 2 tasks | 2 files |
 | Phase 02-client-core P06 | 2 | 2 tasks | 2 files |
 | Phase 02-client-core P07 | 3 | 2 tasks | 2 files |
+| Phase 02-client-core P08 | 15 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 02-07]: threading.Event.wait(timeout) вместо time.sleep — force_sync() устанавливает Event, поток просыпается немедленно без ожидания 30s
 - [Phase 02-07]: Drain pending ПЕРЕД stale resync (D-20): drained + since=None в одном post_sync вызове, локальные изменения не теряются
 - [Phase 02-07]: client error (4xx) останавливает sync loop через _auth_expired флаг — retry при ошибке клиента бессмысленен
+- [Phase 02-08]: test_server_wins_on_conflict: использует stale last_sync_at (>5 мин) для триггера full resync — без pending changes _attempt_sync пропускает HTTP
+- [Phase 02-08]: FakeServer.handle_sync как callback в requests-mock: stateful behavior без сложных fixture цепочек
 
 ### Pending Todos
 
@@ -124,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T04:08:15.270Z
-Stopped at: Completed 02-07-PLAN.md (SyncManager rewrite)
+Last session: 2026-04-16T04:14:00.321Z
+Stopped at: Completed 02-08-PLAN.md (E2E integration tests + log safety — Phase 2 DONE)
 Resume file: None
