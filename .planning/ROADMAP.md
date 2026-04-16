@@ -104,10 +104,10 @@ Plans:
   - `overrideredirect(True)` на Windows 11 требует `after(100, ...)` delay — см. PITFALLS.md Pitfall 1 / STACK.md Gotcha 1
   - pystray + Tkinter: использовать `run_detached()` + `root.after(0, callback)` — см. PITFALLS.md Pitfall 2
 
-**Plans:** 11 plans
+**Plans:** 1/11 plans executed
 
 Plans:
-- [ ] 03-01-PLAN.md — Wave 0: extend conftest.py с headless_tk + mock_pystray/winotify/winreg/ctypes_dpi fixtures
+- [x] 03-01-PLAN.md — Wave 0: extend conftest.py с headless_tk + mock_pystray/winotify/winreg/ctypes_dpi fixtures
 - [ ] 03-02-PLAN.md — Wave 1: ThemeManager (3 палитры UI-SPEC) + UISettings dataclass + SettingsStore
 - [ ] 03-03-PLAN.md — Wave 1: icon_compose.render_overlay_image (Pillow композитор overlay/tray иконки)
 - [ ] 03-04-PLAN.md — Wave 2: OverlayManager — draggable 56×56 + position persist + multi-monitor — OVR-01, 02, 03, 04, 06
@@ -198,7 +198,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Сервер и авторизация | 11/11 | Complete    | 2026-04-15 |
 | 2. Клиентское ядро | 8/8 | Complete    | 2026-04-16 |
-| 3. Оверлей и системная интеграция | 0/11 | Not started | - |
+| 3. Оверлей и системная интеграция | 1/11 | In Progress|  |
 | 4. Недельный вид и задачи | 0/? | Not started | - |
 | 5. Telegram-бот | 0/? | Not started | - |
 | 6. Дистрибуция и автообновление | 0/? | Not started | - |
