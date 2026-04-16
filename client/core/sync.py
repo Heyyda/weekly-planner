@@ -1,103 +1,283 @@
 """
-Sync Manager — синхронизация с сервером.
+SyncManager — фоновая синхронизация (D-07, D-08, D-13, D-19..D-21).
 
-Стратегия: optimistic UI + background sync.
-1. Все действия пользователя применяются к локальному кешу мгновенно
-2. Изменения добавляются в pending_changes
-3. Фоновый поток каждые 30 сек отправляет pending_changes на сервер
-4. При получении ответа — обновляет локальный кеш серверными данными
-5. Конфликты: server wins (серверная версия перезаписывает локальную)
+Алгоритм одного цикла (_attempt_sync):
+    1. drain_pending_changes()  — атомарно изъять локальные изменения
+    2. определить since = last_sync_at | None (None при stale > 5 мин, D-19)
+    3. api_client.post_sync(since, drained)
+    4. На успех:
+         - storage.merge_from_server(server.changes, server_timestamp)
+         - storage.commit_drained(drained)
+         - opportunistic cleanup_tombstones (если pending пуст, D-23)
+    5. На failure:
+         - restore_pending_changes(drained)
+         - если auth_expired — остановить thread (нужен Telegram-код)
 
-API endpoints:
-- POST /api/sync — отправить pending_changes, получить актуальные данные
-- GET  /api/weeks/{week_start} — получить неделю
-- GET  /api/overdue — получить все просроченные задачи
+Wake-up: threading.Event (D-08). UI thread вызывает force_sync() → Event.set() →
+sync thread просыпается из wait(timeout=...) раньше штатных 30 сек.
+
+Push-before-resync (D-20): drained pending передаётся в том же запросе что и
+full resync (since=None), поэтому локальные изменения никогда не теряются.
 """
+from __future__ import annotations
 
+import logging
 import threading
-import time
-import requests
+from datetime import datetime, timezone
 from typing import Optional
 
+from client.core import config
+from client.core.api_client import ApiResult, SyncApiClient
+from client.core.auth import AuthManager
 from client.core.storage import LocalStorage
 
-
-# Сервер
-API_BASE = "https://heyda.ru/planner/api"  # TODO: финализировать URL
-SYNC_INTERVAL = 30  # секунд
+logger = logging.getLogger(__name__)
 
 
 class SyncManager:
     """
-    Фоновая синхронизация.
+    Daemon thread оркестратор синхронизации.
 
-    Запускается в отдельном потоке.
-    При ошибке сети — молча ждёт следующего цикла (оффлайн-режим).
+    Использование:
+        mgr = SyncManager(storage, auth_manager)
+        mgr.start()       # запустить фоновый поток
+        mgr.force_sync()  # немедленно разбудить поток (после добавления задачи)
+        mgr.stop()        # остановить поток при выходе из приложения
     """
 
-    def __init__(self, storage: LocalStorage, jwt_token: Optional[str] = None):
-        self.storage = storage
-        self.jwt_token = jwt_token
-        self._running = False
+    def __init__(
+        self,
+        storage: LocalStorage,
+        auth_manager: AuthManager,
+        api_client: Optional[SyncApiClient] = None,
+    ) -> None:
+        self._storage = storage
+        self._auth = auth_manager
+        self._api_client: SyncApiClient = api_client or SyncApiClient(auth_manager)
+
+        # threading.Event вместо time.sleep — позволяет немедленно разбудить поток (D-08)
+        self._stop_event = threading.Event()
+        self._wake_event = threading.Event()
+
         self._thread: Optional[threading.Thread] = None
+        # Флаг: sync thread должен прекратить работу (auth истёк или client error)
+        self._auth_expired: bool = False
 
-    def start(self):
-        """Запустить фоновую синхронизацию."""
-        self._running = True
-        self._thread = threading.Thread(target=self._sync_loop, daemon=True)
+    # ------------------------------------------------------------------ #
+    # Публичный API                                                        #
+    # ------------------------------------------------------------------ #
+
+    def is_running(self) -> bool:
+        """True если daemon thread запущен и жив."""
+        return self._thread is not None and self._thread.is_alive()
+
+    def start(self) -> None:
+        """
+        Запустить фоновый sync thread (idempotent: повторный вызов = noop).
+
+        Thread называется 'PlannerSync', является daemon → автоматически
+        завершится при выходе из main thread.
+        """
+        if self.is_running():
+            logger.debug("SyncManager.start: уже запущен, игнорируем")
+            return
+        self._stop_event.clear()
+        self._wake_event.clear()
+        self._auth_expired = False
+        self._thread = threading.Thread(
+            target=self._sync_loop,
+            daemon=True,
+            name="PlannerSync",
+        )
         self._thread.start()
+        logger.info("SyncManager запущен (thread=%s)", self._thread.name)
 
-    def stop(self):
-        """Остановить синхронизацию."""
-        self._running = False
+    def stop(self, timeout: float = 5.0) -> None:
+        """
+        Остановить sync thread (graceful shutdown).
 
-    def force_sync(self):
-        """Принудительная синхронизация (вызывается при важных действиях)."""
-        threading.Thread(target=self._do_sync, daemon=True).start()
+        Устанавливает stop_event + будит thread из Event.wait() → thread
+        замечает stop_event в начале следующего цикла и выходит.
+        join(timeout) ждёт завершения, но не более timeout секунд.
+        """
+        self._stop_event.set()
+        self._wake_event.set()  # разбудить если спит в Event.wait()
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+            if self._thread.is_alive():
+                logger.warning(
+                    "SyncManager.stop: thread не завершился за %.1fs", timeout
+                )
+        self._thread = None
+        logger.info("SyncManager остановлен")
 
-    def _sync_loop(self):
-        """Основной цикл синхронизации."""
-        while self._running:
-            self._do_sync()
-            time.sleep(SYNC_INTERVAL)
+    def force_sync(self) -> None:
+        """
+        D-08 / D-21: немедленно разбудить sync thread (не ждать 30-секундный интервал).
 
-    def _do_sync(self):
-        """Одна итерация синхронизации."""
-        if not self.jwt_token:
+        Вызывается UI-слоем при добавлении/изменении задачи, чтобы изменения
+        быстро попали на сервер. Также доступен из tray-меню (Phase 3).
+        """
+        if not self.is_running():
+            logger.debug("force_sync: SyncManager не запущен — игнорируем")
             return
+        self._wake_event.set()
+        logger.debug("force_sync: wake event установлен")
 
-        pending = self.storage.get_pending_changes()
-        if not pending:
-            return
+    # ------------------------------------------------------------------ #
+    # Internal: thread loop                                                #
+    # ------------------------------------------------------------------ #
 
-        try:
-            resp = requests.post(
-                f"{API_BASE}/sync",
-                json={"changes": pending},
-                headers={"Authorization": f"Bearer {self.jwt_token}"},
-                timeout=10,
+    def _sync_loop(self) -> None:
+        """
+        Основной цикл daemon thread. Запускается _thread.start().
+
+        Структура:
+            while not stop:
+                attempt_sync()
+                if auth_expired: break
+                wait(interval)  ← Event.wait, не time.sleep
+        """
+        logger.debug("_sync_loop: старт")
+        while not self._stop_event.is_set():
+            try:
+                self._attempt_sync()
+            except Exception as exc:  # noqa: BLE001
+                # Защитная сетка — не позволяем потоку умереть от неожиданной ошибки
+                logger.exception("_sync_loop: неожиданная ошибка: %s", exc)
+
+            if self._auth_expired:
+                logger.warning("_sync_loop: выход — auth expired (требуется повторный логин)")
+                break
+
+            # Определяем время ожидания:
+            # - если api_client в backoff (были ошибки) — ждём backoff delay
+            # - иначе — штатный SYNC_INTERVAL_SECONDS (30 сек)
+            if self._api_client.consecutive_errors > 0:
+                wait_time = self._api_client.current_backoff
+            else:
+                wait_time = config.SYNC_INTERVAL_SECONDS
+
+            # Event.wait: блокируется до timeout ИЛИ до force_sync()/_stop_event
+            self._wake_event.wait(timeout=wait_time)
+            self._wake_event.clear()
+
+        logger.debug("_sync_loop: завершён")
+
+    # ------------------------------------------------------------------ #
+    # Internal: one sync attempt                                           #
+    # ------------------------------------------------------------------ #
+
+    def _attempt_sync(self) -> ApiResult:
+        """
+        Один цикл синхронизации. Возвращает ApiResult для диагностики.
+        Никогда не raise — все ошибки обрабатываются и логируются.
+
+        Алгоритм:
+            1. Нет access_token → skip (noop ApiResult)
+            2. is_stale? Если да → since=None (D-19 full resync)
+            3. drain_pending_changes() — атомарно изъять (D-20 push ПЕРЕД resync)
+            4. Нечего делать (pending пуст + не stale + last_sync есть) → skip
+            5. post_sync(since, drained)
+            6. 200 → merge_from_server + commit_drained + opportunistic cleanup
+            7. !ok → restore_pending_changes; auth_expired/client error → стоп
+        """
+        # Шаг 1: проверяем авторизацию
+        if self._auth.get_access_token() is None:
+            logger.debug("_attempt_sync: нет access_token, пропускаем цикл")
+            return ApiResult(ok=False, status=0, error_kind="auth", message="no token")
+
+        last_sync_at = self._storage.get_meta("last_sync_at")
+        is_stale = self._is_stale(last_sync_at)
+
+        # Шаг 3: D-20 — drain pending ПЕРЕД full resync (чтобы локальные изменения не потерялись)
+        drained = self._storage.drain_pending_changes()
+
+        # Шаг 4: skip-условие — нечего push'ить, не stale, last_sync известен
+        if not drained and not is_stale and last_sync_at is not None:
+            # Возвращаем "успешный noop" — backoff не растёт, нет лишнего HTTP
+            return ApiResult.success({
+                "changes": [],
+                "server_timestamp": last_sync_at,
+            })
+
+        # Шаг 2: since=None при stale (D-19 full resync)
+        since = None if is_stale else last_sync_at
+        logger.debug(
+            "_attempt_sync: drained=%d, since=%s, stale=%s",
+            len(drained), since, is_stale,
+        )
+
+        # Шаг 5: HTTP запрос
+        result = self._api_client.post_sync(since=since, changes=drained)
+
+        # Шаг 6: успешный ответ
+        if result.ok:
+            payload = result.payload or {}
+            server_changes = payload.get("changes") or []
+            server_timestamp = payload.get("server_timestamp", "")
+            stats = self._storage.merge_from_server(server_changes, server_timestamp)
+            self._storage.commit_drained(drained)
+            logger.info(
+                "Sync OK: pushed=%d, applied=%d, conflicts=%d, tombstones=%d",
+                len(drained),
+                stats["applied"],
+                stats["conflicts"],
+                stats["tombstones_received"],
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                # Обновить локальный кеш серверными данными
-                for week_start, week_data in data.get("weeks", {}).items():
-                    self.storage.save_week(week_start, week_data)
-                self.storage.clear_pending_changes()
-        except requests.RequestException:
-            pass  # оффлайн — повторим на следующем цикле
+            # Opportunistic cleanup (D-23, D-24): если очередь пустая — удалить старые tombstones
+            if self._storage.pending_count() == 0:
+                self._storage.cleanup_tombstones()
+            return result
 
-    def pull_week(self, week_start: str) -> Optional[dict]:
-        """Загрузить неделю с сервера."""
-        if not self.jwt_token:
-            return None
-        try:
-            resp = requests.get(
-                f"{API_BASE}/weeks/{week_start}",
-                headers={"Authorization": f"Bearer {self.jwt_token}"},
-                timeout=10,
+        # Шаг 7: ошибка — вернуть pending в очередь
+        if drained:
+            self._storage.restore_pending_changes(drained)
+
+        if result.error_kind == "auth_expired":
+            # 401 refresh не помог — нужен новый Telegram-код
+            self._auth_expired = True
+            logger.critical("Sync остановлен — auth_expired, требуется повторный логин")
+        elif result.error_kind == "client":
+            # 4xx (не 401): ошибка на нашей стороне — ретраить бессмысленно
+            logger.error(
+                "Sync client error %d: %s — остановка sync (баг клиента)",
+                result.status, result.message,
             )
-            if resp.status_code == 200:
-                return resp.json()
-        except requests.RequestException:
-            pass
-        return None
+            self._auth_expired = True  # используем флаг для остановки цикла
+        else:
+            # network / server → backoff, следующая попытка через _sync_loop
+            logger.warning(
+                "Sync failed (%s, status=%d): %s — retry через %.1fs",
+                result.error_kind,
+                result.status,
+                result.message,
+                result.retry_after or config.SYNC_INTERVAL_SECONDS,
+            )
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Internal: stale detection                                            #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _is_stale(last_sync_at: Optional[str]) -> bool:
+        """
+        D-19: возвращает True если last_sync_at старше STALE_THRESHOLD_SECONDS.
+
+        Возвращает True при:
+        - last_sync_at is None (никогда не синхронизировались)
+        - повреждённая/неверная строка даты
+        - время больше порога (> 5 минут по умолчанию)
+        """
+        if last_sync_at is None:
+            return True
+        try:
+            last = datetime.fromisoformat(last_sync_at.replace("Z", "+00:00"))
+        except (ValueError, AttributeError, TypeError):
+            return True  # повреждённая строка → безопаснее сделать full resync
+        try:
+            delta = (datetime.now(timezone.utc) - last).total_seconds()
+        except (TypeError, OverflowError):
+            return True
+        return delta > config.STALE_THRESHOLD_SECONDS
