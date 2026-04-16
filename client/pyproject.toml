@@ -1,0 +1,18 @@
+# pytest config для клиентской части Личного Еженедельника.
+# Тесты синхронные (client sync, без asyncio) — asyncio_mode не указан.
+
+[tool.pytest.ini_options]
+testpaths = ["client/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--tb=short",
+    "--timeout=10",
+]
+markers = [
+    "integration: integration tests (могут быть медленнее)",
+    "unit: быстрые unit-тесты",
+]

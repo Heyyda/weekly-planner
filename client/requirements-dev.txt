@@ -1,0 +1,8 @@
+# Dev-зависимости для client тестов (не попадают в PyInstaller build).
+# Устанавливаются локально: pip install -r client/requirements-dev.txt
+-r ../requirements.txt
+
+pytest>=8.0.0
+pytest-mock>=3.14.0
+pytest-timeout>=2.2.0
+requests-mock>=1.12.0
