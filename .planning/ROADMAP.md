@@ -143,7 +143,20 @@ Plans:
   - Полная перерисовка при каждом изменении задачи → потеря scroll position; нужны partial updates (только изменённый TaskWidget)
   - `after(100, overrideredirect)` для главного окна — та же проблема что у overlay
 
-**Plans**: TBD
+**Plans:** 11 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Wave 0: conftest.py фикстуры Phase 4 (timestamped_task_factory, mock_storage, mock_theme_manager, dnd_event_simulator) + 04-VALIDATION.md финализация
+- [ ] 04-02-PLAN.md — Wave 1 (TDD): client/ui/parse_input.py smart parse + format_date_range_ru — TASK-01 parse
+- [ ] 04-03-PLAN.md — Wave 1: client/ui/task_widget.py полностью переписан — 3 стиля + custom Canvas checkbox + hover icons — WEEK-04/05, TASK-02
+- [ ] 04-04-PLAN.md — Wave 2: client/ui/day_section.py — header + 7 DaySection + empty '+' + inline add — WEEK-01, TASK-07
+- [ ] 04-05-PLAN.md — Wave 2: client/ui/week_navigation.py — prev/next/today + archive detect + keyboard + interpolate_palette — WEEK-02/03/06
+- [ ] 04-06-PLAN.md — Wave 3: client/ui/quick_capture.py — CTkToplevel popup + parse + edge-flip — TASK-01, TASK-07
+- [ ] 04-07-PLAN.md — Wave 3: client/ui/edit_dialog.py — modal + 4 fields + validation + grab_release — TASK-03
+- [ ] 04-08-PLAN.md — Wave 4: client/ui/undo_toast.py — CTkFrame + place + countdown + max 3 stack — TASK-04
+- [ ] 04-09-PLAN.md — Wave 4: client/ui/drag_controller.py — Approach 2 per 04-RESEARCH-DND (mouse bindings + ghost Toplevel + bbox hit-test) — TASK-05, TASK-06
+- [ ] 04-10-PLAN.md — Wave 5: client/ui/main_window.py + client/app.py integration — всё wired — все 13 REQ-IDs
+- [ ] 04-11-PLAN.md — Wave 5: E2E integration tests (10+ scenarios) + human-verify checkpoint — final sign-off
 
 ---
 
@@ -199,7 +212,7 @@ Plans:
 | 1. Сервер и авторизация | 11/11 | Complete    | 2026-04-15 |
 | 2. Клиентское ядро | 8/8 | Complete    | 2026-04-16 |
 | 3. Оверлей и системная интеграция | 11/11 | Complete    | 2026-04-16 |
-| 4. Недельный вид и задачи | 0/? | Not started | - |
+| 4. Недельный вид и задачи | 0/11 | In progress | - |
 | 5. Telegram-бот | 0/? | Not started | - |
 | 6. Дистрибуция и автообновление | 0/? | Not started | - |
 
