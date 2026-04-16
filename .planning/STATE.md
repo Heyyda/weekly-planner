@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-client-core 02-03-PLAN.md
-last_updated: "2026-04-16T03:53:35.813Z"
+stopped_at: "Completed 02-02-PLAN.md (Wave 1: models + paths + config)"
+last_updated: "2026-04-16T03:53:55.156Z"
 progress:
   total_phases: 6
   completed_phases: 1
@@ -57,6 +57,7 @@ Plan: 4 of 8
 | Phase 01-server-auth P08 | 30 | 3 tasks | 6 files |
 | Phase 02-client-core P01 | 2 | 2 tasks | 5 files |
 | Phase 02-client-core P03 | 2 | 1 tasks | 2 files |
+| Phase 02-client-core P02 | 3 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Recent decisions affecting current work:
 - [Phase 02-client-core]: tmp_appdata fixture подменяет и APPDATA и LOCALAPPDATA — покрывает fallback D-02
 - [Phase 02-client-core]: SecretFilter на root logger — наследуется всеми child-логгерами без дополнительной конфигурации (D-29)
 - [Phase 02-client-core]: Идемпотентность setup_client_logging через маркер на root logger object — без глобальных переменных модуля
+- [Phase 02-client-core]: KEYRING_SERVICE=WeeklyPlanner (ASCII) — избегаем frozen exe проблему с Cyrillic (D-25, Pitfall 4)
+- [Phase 02-client-core]: Task timestamps хранятся как str (ISO 8601 с Z) — минимум conversion при JSON сериализации; lexicographic compare работает если формат единый
+- [Phase 02-client-core]: AppPaths — lightweight не-singleton; создаётся по необходимости, легко тестируется через monkeypatch env vars
 
 ### Pending Todos
 
@@ -106,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T03:53:27.634Z
-Stopped at: Completed 02-client-core 02-03-PLAN.md
+Last session: 2026-04-16T03:53:55.153Z
+Stopped at: Completed 02-02-PLAN.md (Wave 1: models + paths + config)
 Resume file: None

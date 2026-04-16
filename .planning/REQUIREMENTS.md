@@ -31,7 +31,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **SYNC-03**: Фоновый sync-поток периодически отправляет `pending_changes` и забирает delta с сервера
 - [ ] **SYNC-04**: `threading.Lock` на доступ к `pending_changes` из UI- и sync-потоков (предотвращение race condition)
 - [ ] **SYNC-05**: При конфликте server-wins (серверный `updated_at` переопределяет локальный)
-- [ ] **SYNC-06**: UUID ID генерируются на клиенте — CREATE идемпотентен, не ждёт сервер
+- [x] **SYNC-06**: UUID ID генерируются на клиенте — CREATE идемпотентен, не ждёт сервер
 - [ ] **SYNC-07**: При восстановлении сети после оффлайн — автоматический full resync всех накопленных изменений
 - [ ] **SYNC-08**: Tombstone для удалений (`deleted_at`) — не создавать задачу заново на другом устройстве
 
@@ -174,7 +174,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SYNC-03 | Phase 2 | Pending |
 | SYNC-04 | Phase 2 | Pending |
 | SYNC-05 | Phase 2 | Pending |
-| SYNC-06 | Phase 2 | Pending |
+| SYNC-06 | Phase 2 | Complete |
 | SYNC-07 | Phase 2 | Pending |
 | SYNC-08 | Phase 2 | Pending |
 | OVR-01 | Phase 3 | Pending |
