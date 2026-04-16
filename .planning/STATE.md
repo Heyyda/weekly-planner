@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 02-05-PLAN.md (Wave 2: LocalStorage rewrite)"
-last_updated: "2026-04-16T03:58:58.753Z"
+stopped_at: Completed 02-client-core/02-06-PLAN.md
+last_updated: "2026-04-16T04:03:19.949Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 02 (client-core) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Plan: 6 of 8
 | Phase 02-client-core P02 | 3 | 2 tasks | 6 files |
 | Phase 02-client-core P04 | 116 | 2 tasks | 2 files |
 | Phase 02-client-core P05 | 8 | 2 tasks | 2 files |
+| Phase 02-client-core P06 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 02-client-core]: AuthExpiredError из refresh_access перехватывается load_saved_token — возвращает False (не пробрасывается)
 - [Phase 02-client-core]: threading.Lock (не RLock) — D-12: никаких nested acquire, простой паттерн
 - [Phase 02-client-core]: drain_pending_changes НЕ сохраняет cache.json — сохраняем только после confirmed push
+- [Phase 02-client-core]: ApiResult никогда не raise — SyncManager инспектирует поля (offline-tolerant design)
+- [Phase 02-client-core]: 401 retry ровно один раз: refresh_access() + retry; второй 401 → auth_expired()
+- [Phase 02-client-core]: SYNC-06: task_id стабилен в TaskChange при ретраях — сервер принимает CREATE идемпотентно
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T03:58:58.750Z
-Stopped at: Completed 02-05-PLAN.md (Wave 2: LocalStorage rewrite)
+Last session: 2026-04-16T04:03:19.947Z
+Stopped at: Completed 02-client-core/02-06-PLAN.md
 Resume file: None
