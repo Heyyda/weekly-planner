@@ -176,7 +176,13 @@ Plans:
 
 **Research flags**: Нет (aiogram 3.x long-polling как отдельный процесс — паттерн описан в research/ARCHITECTURE.md)
 
-**Plans**: TBD
+**Plans:** code-complete (no formal plan docs — scope fit one session)
+- [x] shared/parse_input.py вынесен для переиспользования
+- [x] server/bot/tasks_service.py — async CRUD (create/toggle/move/delete/today/week)
+- [x] server/bot/formatters.py — MarkdownV2 text + inline keyboards
+- [x] server/bot/handlers.py — /add, /today, /week + callback `tk:toggle/tomorrow` (BOT-03/04/05)
+- [x] deploy/planner-bot.service — systemd unit (уже был Phase 1)
+- [x] Tests: 9 Phase 5 bot tests (14 total bot tests) — 101 server green
 
 ---
 
@@ -213,7 +219,7 @@ Plans:
 | 2. Клиентское ядро | 8/8 | Complete    | 2026-04-16 |
 | 3. Оверлей и системная интеграция | 11/11 | Complete    | 2026-04-16 |
 | 4. Недельный вид и задачи | 11/11 | Code-complete (human-verify pending) | 2026-04-16 |
-| 5. Telegram-бот | 0/? | Not started | - |
+| 5. Telegram-бот | done | Code-complete (BOT-03/04/05 tests green) | 2026-04-16 |
 | 6. Дистрибуция и автообновление | 0/? | Not started | - |
 
 ---
