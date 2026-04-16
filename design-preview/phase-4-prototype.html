@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Личный Еженедельник — Phase 4 Preview</title>
+<style>
+:root {
+  /* Claude-Code-inspired warm cream (light) */
+  --bg-primary: #F5EFE6;
+  --bg-secondary: #EDE6D9;
+  --bg-tertiary: #E6DDC9;
+  --text-primary: #2B2420;
+  --text-secondary: #6B5E4E;
+  --text-tertiary: #9A8F7D;
+  --accent-brand: #1E73E8;
+  --accent-brand-light: #4EA1FF;
+  --accent-done: #38A169;
+  --accent-overdue: #E85A5A;
+  --shadow-card: 0 1px 3px rgba(70, 55, 40, 0.08);
+  --shadow-dialog: 0 8px 32px rgba(70, 55, 40, 0.25);
+  --font-base: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", monospace;
+}
+[data-theme="dark"] {
+  --bg-primary: #1F1B16;
+  --bg-secondary: #2B2620;
+  --bg-tertiary: #3A332C;
+  --text-primary: #F0E9DC;
+  --text-secondary: #B8AE9C;
+  --text-tertiary: #7A715F;
+  --accent-brand: #4EA1FF;
+  --accent-brand-light: #85BFFF;
+  --accent-done: #48B97D;
+  --accent-overdue: #F07272;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+[data-theme="beige"] {
+  --bg-primary: #E8DDC4;
+  --bg-secondary: #D9CFB8;
+  --bg-tertiary: #C9BEA2;
+  --text-primary: #3D2F1F;
+  --text-secondary: #6E5F48;
+  --text-tertiary: #968769;
+  --accent-brand: #2966C4;
+  --accent-brand-light: #4E86DA;
+  --accent-done: #4A7A3D;
+  --accent-overdue: #C04B3C;
+  --shadow-card: 0 1px 3px rgba(80, 55, 30, 0.12);
+  --shadow-dialog: 0 8px 32px rgba(80, 55, 30, 0.35);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-base);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding: 24px;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* === TOP BAR === */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+h1 .badge {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  margin-left: 8px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.control-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+.control-group label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.control-group button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.control-group button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.control-group button.active {
+  background: var(--accent-brand);
+  color: #fff;
+}
+
+/* === LAYOUT === */
+.grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 16px;
+  position: relative;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* === OVERLAY SQUARE === */
+.overlay-scene {
+  height: 320px;
+  background: linear-gradient(135deg, #999 0%, #aaa 100%);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.03), rgba(0,0,0,0.03) 1px, transparent 1px, transparent 40px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.03), rgba(0,0,0,0.03) 1px, transparent 1px, transparent 40px),
+    linear-gradient(135deg, #999 0%, #aaa 100%);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+[data-theme="dark"] .overlay-scene {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 1px, transparent 1px, transparent 40px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 1px, transparent 1px, transparent 40px),
+    linear-gradient(135deg, #333 0%, #444 100%);
+}
+.overlay-scene::before {
+  content: "рабочий стол (имитация)";
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  font-style: italic;
+}
+
+.square {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4EA1FF 0%, #1E73E8 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: transform 0.1s;
+  top: 120px;
+  left: 100px;
+}
+.square:hover { transform: scale(1.05); }
+.square:active { cursor: grabbing; }
+.square .checkmark {
+  color: white;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+.square .badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: white;
+  color: #1E73E8;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #1E73E8;
+}
+.square.empty-state .checkmark::before { content: "+"; }
+.square.empty-state .checkmark { content: "+"; }
+.square.overdue {
+  animation: pulse 2.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { background: linear-gradient(135deg, #4EA1FF 0%, #1E73E8 100%); }
+  50%      { background: linear-gradient(135deg, #E85A5A 0%, #C03535 100%); }
+}
+
+/* === QUICK CAPTURE POPUP === */
+.qc-popup {
+  position: absolute;
+  top: 192px;
+  left: 70px;
+  width: 400px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  box-shadow: var(--shadow-dialog);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  border-left: 3px solid var(--accent-brand);
+  overflow: hidden;
+}
+.qc-popup input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+}
+.qc-popup input::placeholder { color: var(--text-tertiary); }
+.qc-popup .hint {
+  padding: 0 12px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* === MAIN WINDOW === */
+.window {
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-dialog);
+}
+.window-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.window-header .nav {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.window-header button.nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.window-header button.nav-btn:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.window-header .title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.window-header .today-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-brand);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.window-header .today-btn:hover { background: var(--bg-secondary); }
+
+/* === ARCHIVE BANNER === */
+.archive-banner {
+  background: var(--bg-tertiary);
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+.archive-banner .return-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-brand);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* === ACCORDION === */
+.days {
+  padding: 4px 0;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.days.archive { opacity: 0.7; pointer-events: none; }
+.day {
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+.day:last-child { border-bottom: none; }
+.day-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  gap: 8px;
+  position: relative;
+  transition: background 0.15s;
+}
+.day-header:hover { background: var(--bg-secondary); }
+.day-header .chevron {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  width: 10px;
+}
+.day-header .day-name {
+  color: var(--text-primary);
+  font-size: 13px;
+  flex: 1;
+}
+.day-header .count {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.day-header .count.overdue-count { color: var(--accent-overdue); }
+.day-header.today .day-name { font-weight: 700; }
+.day-header.today::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-brand);
+}
+.day-header.today .today-tag {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 8px;
+  font-weight: 400;
+}
+
+/* Day content */
+.day-body {
+  padding: 4px 16px 12px 29px;
+}
+.day-body.collapsed { display: none; }
+
+/* === TASK BLOCKS (3 styles) === */
+/* Style A: Card */
+.task {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  transition: all 0.15s;
+  cursor: default;
+}
+.task .checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  transition: all 0.15s;
+}
+.task.done .checkbox {
+  background: var(--accent-done);
+  border-color: var(--accent-done);
+}
+.task.done .checkbox::after {
+  content: "✓";
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+}
+.task.overdue .checkbox {
+  border-color: var(--accent-overdue);
+}
+.task .text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding-top: 1px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+.task.done .text {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+.task .time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-top: 2px;
+  white-space: nowrap;
+}
+.task.overdue .time { color: var(--accent-overdue); }
+.task .actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.task:hover .actions { opacity: 1; }
+.task .actions button {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  border-radius: 3px;
+}
+.task .actions button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+/* Style A = card */
+body[data-style="A"] .task:not(.empty-add) {
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-card);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+/* Style B = line */
+body[data-style="B"] .task:not(.empty-add) {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+body[data-style="B"] .task:last-of-type { border-bottom: none; }
+/* Style C = minimal */
+body[data-style="C"] .task:not(.empty-add) {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+body[data-style="C"] .task:not(.empty-add):hover {
+  background: rgba(30, 115, 232, 0.05);
+}
+
+/* === EMPTY DAY === */
+.empty-day {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+.empty-day button {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 28px;
+  cursor: pointer;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  transition: all 0.15s;
+}
+.empty-day button:hover {
+  color: var(--accent-brand);
+  background: rgba(30, 115, 232, 0.08);
+}
+
+/* === EDIT DIALOG === */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.dialog-overlay.show { display: flex; }
+.dialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 420px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-dialog);
+}
+.dialog h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+}
+.dialog h3 .close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.field {
+  margin-bottom: 14px;
+}
+.field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.field input, .field textarea, .field select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+}
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent-brand); }
+.field textarea { min-height: 60px; resize: vertical; }
+.field .time-row { display: flex; gap: 8px; }
+.field .time-row input { flex: 0 0 90px; }
+.field .time-row button {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 14px;
+}
+.field .check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.check-row input[type="checkbox"] { width: 16px; height: 16px; }
+.check-row label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text-primary); }
+.dialog-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bg-tertiary);
+}
+.dialog-actions .right { display: flex; gap: 8px; }
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+.btn-primary { background: var(--accent-brand); color: white; }
+.btn-primary:hover { background: var(--accent-brand-light); }
+.btn-secondary { background: var(--bg-secondary); color: var(--text-primary); }
+.btn-secondary:hover { background: var(--bg-tertiary); }
+.btn-danger { background: transparent; color: var(--accent-overdue); padding-left: 0; }
+.btn-danger:hover { text-decoration: underline; }
+
+/* === UNDO TOAST === */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-dialog);
+  display: none;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  min-width: 260px;
+  overflow: hidden;
+}
+.toast.show { display: flex; }
+.toast .undo {
+  background: none;
+  border: none;
+  color: var(--accent-brand);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.toast .countdown {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent-brand);
+  animation: countdown 5s linear forwards;
+}
+@keyframes countdown { from { width: 100%; } to { width: 0%; } }
+
+/* === DnD DEMO === */
+.dnd-demo {
+  position: relative;
+}
+.dnd-demo .day.drag-source .task.dragging {
+  opacity: 0.3;
+}
+.dnd-demo .day.drag-target {
+  background: rgba(30, 115, 232, 0.12);
+  box-shadow: inset 3px 0 0 var(--accent-brand);
+}
+.dnd-demo .day.drag-adjacent {
+  background: rgba(30, 115, 232, 0.04);
+}
+.ghost {
+  position: absolute;
+  opacity: 0.7;
+  pointer-events: none;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-dialog);
+  padding: 10px 12px;
+  border-radius: 8px;
+  min-width: 240px;
+  font-size: 13px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  top: 180px;
+  left: 160px;
+  z-index: 50;
+  transform: rotate(-2deg);
+}
+.ghost::before {
+  content: "👆";
+  position: absolute;
+  top: -16px;
+  right: 10px;
+  font-size: 14px;
+}
+
+/* === NEXT WEEK DROP === */
+.next-week-drop {
+  margin: 16px;
+  padding: 20px;
+  border: 2px dashed var(--accent-brand);
+  border-radius: 10px;
+  text-align: center;
+  color: var(--accent-brand);
+  font-size: 13px;
+  background: rgba(30, 115, 232, 0.05);
+}
+
+/* === NOTES === */
+.note {
+  max-width: 1400px;
+  margin: 24px auto 0;
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent-brand);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.note b { color: var(--text-primary); }
+.note code {
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* === SCROLL === */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+</style>
+</head>
+<body data-theme="light" data-style="A">
+
+<div class="top-bar">
+  <h1>Личный Еженедельник <span class="badge">Phase 4 preview</span></h1>
+  <div class="controls">
+    <div class="control-group">
+      <label>тема</label>
+      <button data-action="theme" data-value="light" class="active">светлая</button>
+      <button data-action="theme" data-value="dark">тёмная</button>
+      <button data-action="theme" data-value="beige">бежевая</button>
+    </div>
+    <div class="control-group">
+      <label>стиль задач</label>
+      <button data-action="style" data-value="A" class="active">карточки</button>
+      <button data-action="style" data-value="B">строки</button>
+      <button data-action="style" data-value="C">минимализм</button>
+    </div>
+    <div class="control-group">
+      <label>сценарий</label>
+      <button data-action="scene" data-value="normal" class="active">обычный</button>
+      <button data-action="scene" data-value="overdue">просрочка</button>
+      <button data-action="scene" data-value="empty">пусто</button>
+      <button data-action="scene" data-value="archive">архив</button>
+      <button data-action="scene" data-value="dnd">DnD</button>
+      <button data-action="scene" data-value="qc">quick-capture</button>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- LEFT: Overlay + quick capture -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>overlay на рабочем столе</span>
+      <span id="scene-label">обычный режим</span>
+    </div>
+    <div class="overlay-scene">
+      <div class="square" id="square">
+        <span class="checkmark">✓</span>
+        <span class="badge" id="badge">3</span>
+      </div>
+      <div class="qc-popup" id="qc-popup" style="display:none;">
+        <input type="text" placeholder="позвонить завтра 14:00..." autofocus>
+        <span class="hint">Enter</span>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px;padding:12px;">
+      <b>Правый клик</b> на квадрате → quick-capture input под ним.<br>
+      <b>Auto-parse:</b> "позвонить завтра 14:00" → текст="позвонить", день=завтра, время=14:00
+    </div>
+  </div>
+
+  <!-- RIGHT: Main window -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>главное окно</span>
+      <span>ресайзабельное · аккордеон</span>
+    </div>
+    <div class="window">
+      <div class="window-header">
+        <div class="nav">
+          <button class="nav-btn">◀</button>
+          <span class="title" id="week-title">Неделя 16 · 14-20 апр</span>
+          <button class="nav-btn">▶</button>
+        </div>
+        <button class="today-btn" id="today-btn" style="display:none;">Сегодня</button>
+      </div>
+
+      <div class="archive-banner" id="archive-banner" style="display:none;">
+        <span>📦 Архив · неделя 14 · 31 мар-6 апр</span>
+        <button class="return-btn">Вернуться →</button>
+      </div>
+
+      <div class="days" id="days-list">
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Пн 14</span>
+            <span class="count">(2)</span>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header today">
+            <span class="chevron">▼</span>
+            <span class="day-name">Вт 15 <span class="today-tag">• сегодня</span></span>
+            <span class="count">(3)</span>
+          </div>
+          <div class="day-body" id="today-body">
+            <div class="task">
+              <div class="checkbox"></div>
+              <div class="text">Позвонить Иванову по поводу отгрузки</div>
+              <div class="time">14:00</div>
+              <div class="actions">
+                <button title="Редактировать" onclick="openDialog()">✏️</button>
+                <button title="Удалить" onclick="showToast()">🗑</button>
+              </div>
+            </div>
+            <div class="task done">
+              <div class="checkbox"></div>
+              <div class="text">Отправить договор в юр. отдел</div>
+              <div class="actions">
+                <button>✏️</button>
+                <button onclick="showToast()">🗑</button>
+              </div>
+            </div>
+            <div class="task">
+              <div class="checkbox"></div>
+              <div class="text">Проверить склад — остатки металлопроката. Нужно сверить накладные за март и апрель, позвонить поставщику если будут расхождения.</div>
+              <div class="time">16:30</div>
+              <div class="actions">
+                <button>✏️</button>
+                <button onclick="showToast()">🗑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Ср 16</span>
+            <span class="count">(0)</span>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Чт 17</span>
+            <span class="count">(5)</span>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Пт 18</span>
+            <span class="count">(1)</span>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Сб 19</span>
+          </div>
+        </div>
+
+        <div class="day">
+          <div class="day-header">
+            <span class="chevron">▶</span>
+            <span class="day-name">Вс 20</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Notes -->
+<div class="note">
+  <b>Что здесь показано:</b> реальная палитра из Claude Code (three themes switcher наверху), три стиля задач (переключатель наверху), today-секция с синей полоской + bold заголовком, wrap длинного текста на 3-ей задаче. Наведи мышкой на задачу — появятся ✏️ / 🗑 справа. Клик ✏️ → edit dialog; клик 🗑 → undo-toast.
+</div>
+<div class="note">
+  <b>Попробуй сценарии:</b> <b>просрочка</b> (квадрат пульсирует, задача с красной галочкой), <b>пусто</b> (день без задач с "+" по центру), <b>архив</b> (dim + banner "Вернуться"), <b>DnD</b> (ghost за курсором + подсветка зон), <b>quick-capture</b> (input под квадратом).
+</div>
+
+<!-- Edit Dialog -->
+<div class="dialog-overlay" id="dialog">
+  <div class="dialog">
+    <h3>Задача <button class="close" onclick="closeDialog()">✕</button></h3>
+    <div class="field">
+      <label>Текст</label>
+      <textarea>Позвонить Иванову по поводу отгрузки</textarea>
+    </div>
+    <div class="field">
+      <label>День</label>
+      <select>
+        <option>Сегодня (вт 15 апр)</option>
+        <option>Завтра (ср 16 апр)</option>
+        <option>Послезавтра (чт 17 апр)</option>
+        <option>━━ выбрать дату ━━</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Время</label>
+      <div class="time-row">
+        <input type="text" value="14:00" placeholder="HH:MM">
+        <button title="Убрать">✕</button>
+      </div>
+    </div>
+    <div class="field check-row">
+      <input type="checkbox" id="done-cb">
+      <label for="done-cb">Выполнено</label>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-danger" onclick="closeDialog(); showToast();">🗑 Удалить</button>
+      <div class="right">
+        <button class="btn btn-secondary" onclick="closeDialog()">Отмена</button>
+        <button class="btn btn-primary" onclick="closeDialog()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Undo Toast -->
+<div class="toast" id="toast">
+  <span>⟲ Задача удалена</span>
+  <button class="undo" onclick="hideToast()">Отменить</button>
+  <div class="countdown"></div>
+</div>
+
+<script>
+// === Theme switcher ===
+document.querySelectorAll('[data-action="theme"]').forEach(btn => {
+  btn.onclick = () => {
+    document.body.dataset.theme = btn.dataset.value;
+    document.querySelectorAll('[data-action="theme"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+});
+
+// === Style switcher ===
+document.querySelectorAll('[data-action="style"]').forEach(btn => {
+  btn.onclick = () => {
+    document.body.dataset.style = btn.dataset.value;
+    document.querySelectorAll('[data-action="style"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+});
+
+// === Scene switcher ===
+const scenes = {
+  normal: () => {
+    document.getElementById('square').classList.remove('overdue', 'empty-state');
+    document.getElementById('square').querySelector('.checkmark').textContent = '✓';
+    document.getElementById('badge').style.display = '';
+    document.getElementById('badge').textContent = '3';
+    document.getElementById('qc-popup').style.display = 'none';
+    document.getElementById('archive-banner').style.display = 'none';
+    document.getElementById('days-list').classList.remove('archive');
+    document.getElementById('today-body').innerHTML = defaultTasks();
+    document.getElementById('scene-label').textContent = 'обычный режим';
+  },
+  overdue: () => {
+    scenes.normal();
+    document.getElementById('square').classList.add('overdue');
+    document.getElementById('badge').textContent = '2';
+    document.getElementById('today-body').innerHTML = overdueTasks();
+    document.getElementById('scene-label').textContent = 'есть просроченные задачи';
+  },
+  empty: () => {
+    scenes.normal();
+    document.getElementById('square').classList.add('empty-state');
+    document.getElementById('square').querySelector('.checkmark').textContent = '+';
+    document.getElementById('badge').style.display = 'none';
+    document.getElementById('today-body').innerHTML = '<div class="empty-day"><button title="Добавить задачу">+</button></div>';
+    document.getElementById('scene-label').textContent = 'задач нет';
+  },
+  archive: () => {
+    scenes.normal();
+    document.getElementById('archive-banner').style.display = 'flex';
+    document.getElementById('days-list').classList.add('archive');
+    document.getElementById('week-title').textContent = 'Неделя 14 · 31 мар-6 апр';
+    document.getElementById('today-btn').style.display = 'inline-block';
+    document.getElementById('scene-label').textContent = 'просмотр архива';
+  },
+  dnd: () => {
+    scenes.normal();
+    document.getElementById('today-body').innerHTML = dndTasks();
+    document.getElementById('scene-label').textContent = 'drag-and-drop в процессе';
+  },
+  qc: () => {
+    scenes.normal();
+    document.getElementById('qc-popup').style.display = 'flex';
+    setTimeout(() => document.querySelector('#qc-popup input').focus(), 50);
+    document.getElementById('scene-label').textContent = 'quick-capture active';
+  }
+};
+document.querySelectorAll('[data-action="scene"]').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('[data-action="scene"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    scenes[btn.dataset.value]();
+  };
+});
+
+function defaultTasks() {
+  return `
+    <div class="task">
+      <div class="checkbox"></div>
+      <div class="text">Позвонить Иванову по поводу отгрузки</div>
+      <div class="time">14:00</div>
+      <div class="actions">
+        <button title="Редактировать" onclick="openDialog()">✏️</button>
+        <button title="Удалить" onclick="showToast()">🗑</button>
+      </div>
+    </div>
+    <div class="task done">
+      <div class="checkbox"></div>
+      <div class="text">Отправить договор в юр. отдел</div>
+      <div class="actions">
+        <button>✏️</button>
+        <button onclick="showToast()">🗑</button>
+      </div>
+    </div>
+    <div class="task">
+      <div class="checkbox"></div>
+      <div class="text">Проверить склад — остатки металлопроката. Нужно сверить накладные за март и апрель, позвонить поставщику если будут расхождения.</div>
+      <div class="time">16:30</div>
+      <div class="actions">
+        <button>✏️</button>
+        <button onclick="showToast()">🗑</button>
+      </div>
+    </div>
+  `;
+}
+
+function overdueTasks() {
+  return `
+    <div class="task overdue">
+      <div class="checkbox"></div>
+      <div class="text">Позвонить поставщику трубы</div>
+      <div class="time">09:00</div>
+      <div class="actions">
+        <button onclick="openDialog()">✏️</button>
+        <button onclick="showToast()">🗑</button>
+      </div>
+    </div>
+    <div class="task overdue">
+      <div class="checkbox"></div>
+      <div class="text">Проверить cмарт-Пром счёт</div>
+      <div class="time">11:30</div>
+      <div class="actions">
+        <button onclick="openDialog()">✏️</button>
+        <button onclick="showToast()">🗑</button>
+      </div>
+    </div>
+    <div class="task">
+      <div class="checkbox"></div>
+      <div class="text">Встреча с Петровым</div>
+      <div class="time">15:00</div>
+      <div class="actions">
+        <button onclick="openDialog()">✏️</button>
+        <button onclick="showToast()">🗑</button>
+      </div>
+    </div>
+  `;
+}
+
+function dndTasks() {
+  return `
+    <div class="dnd-demo">
+      <div class="day drag-source">
+        <div class="day-header today" style="padding-left:0; background:rgba(30,115,232,0.04);">
+          <span class="chevron">▼</span>
+          <span class="day-name">Вт 15 <span class="today-tag">• сегодня</span></span>
+          <span class="count">(3)</span>
+        </div>
+        <div class="day-body">
+          <div class="task dragging">
+            <div class="checkbox"></div>
+            <div class="text" style="opacity:0.3;">Позвонить Иванову (перетаскивается)</div>
+            <div class="time">14:00</div>
+          </div>
+          <div class="task">
+            <div class="checkbox"></div>
+            <div class="text">Отправить заказ</div>
+          </div>
+        </div>
+      </div>
+      <div class="day drag-target" style="background: rgba(30,115,232,0.15); border-left:3px solid var(--accent-brand);">
+        <div class="day-header">
+          <span class="chevron">▶</span>
+          <span class="day-name">Ср 16 <span style="font-size:11px;color:var(--accent-brand);margin-left:8px;">↓ сюда?</span></span>
+          <span class="count">(0)</span>
+        </div>
+      </div>
+      <div class="day drag-adjacent" style="background: rgba(30,115,232,0.04);">
+        <div class="day-header">
+          <span class="chevron">▶</span>
+          <span class="day-name">Чт 17</span>
+          <span class="count">(5)</span>
+        </div>
+      </div>
+      <div class="next-week-drop">
+        📅 Следующая неделя 17 · 21-27 апр
+      </div>
+      <div class="ghost">
+        <div class="checkbox" style="border-color:var(--text-secondary);"></div>
+        <div>Позвонить Иванову</div>
+        <div style="color:var(--text-secondary);font-family:var(--font-mono);font-size:11px;">14:00</div>
+      </div>
+    </div>
+  `;
+}
+
+// === Dialog ===
+function openDialog() { document.getElementById('dialog').classList.add('show'); }
+function closeDialog() { document.getElementById('dialog').classList.remove('show'); }
+
+// === Toast ===
+let toastTimer;
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  const cd = t.querySelector('.countdown');
+  cd.style.animation = 'none'; cd.offsetHeight; cd.style.animation = '';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 5000);
+}
+function hideToast() { document.getElementById('toast').classList.remove('show'); clearTimeout(toastTimer); }
+
+// === Keyboard ===
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeDialog();
+    hideToast();
+    if (document.getElementById('qc-popup').style.display === 'flex') {
+      document.getElementById('qc-popup').style.display = 'none';
+    }
+  }
+});
+
+// === Drag square (demo) ===
+let sx, sy, dx, dy, dragging = false;
+const sq = document.getElementById('square');
+sq.onmousedown = (e) => {
+  if (e.button === 2) return; // right click handled by contextmenu
+  dragging = true;
+  const r = sq.getBoundingClientRect();
+  dx = e.clientX - r.left;
+  dy = e.clientY - r.top;
+  e.preventDefault();
+};
+window.onmousemove = (e) => {
+  if (!dragging) return;
+  const scene = sq.parentElement.getBoundingClientRect();
+  let x = e.clientX - scene.left - dx;
+  let y = e.clientY - scene.top - dy;
+  x = Math.max(0, Math.min(x, scene.width - 56));
+  y = Math.max(0, Math.min(y, scene.height - 56));
+  sq.style.left = x + 'px';
+  sq.style.top = y + 'px';
+};
+window.onmouseup = () => dragging = false;
+
+// Right click → quick capture
+sq.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const qc = document.getElementById('qc-popup');
+  const r = sq.getBoundingClientRect();
+  const scene = sq.parentElement.getBoundingClientRect();
+  qc.style.left = (r.left - scene.left - 170) + 'px'; // center under square
+  qc.style.top = (r.top - scene.top + 64) + 'px';
+  qc.style.display = 'flex';
+  setTimeout(() => qc.querySelector('input').focus(), 50);
+});
+</script>
+
+</body>
+</html>
