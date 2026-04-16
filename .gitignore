@@ -4,7 +4,9 @@ __pycache__/
 *.egg-info/
 dist/
 build_output/
+build/planner/
 *.spec
+!planner.spec
 
 # Virtual environment
 venv/

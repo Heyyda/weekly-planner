@@ -44,6 +44,7 @@ from client.ui.themes import ThemeManager
 from client.utils import autostart as autostart_mod
 from client.utils.notifications import NotificationManager
 from client.utils.tray import TrayManager
+from client.utils.updater import UpdateManager
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +215,8 @@ class WeeklyPlannerApp:
         # 11. Schedulers
         self.root.after(REFRESH_INTERVAL_MS, self._scheduled_refresh)
         self.root.after(DEADLINE_CHECK_INTERVAL_MS, self._scheduled_deadline_check)
+        # DIST-04: однократная проверка обновлений через 30s после запуска (не блокируем startup)
+        self.root.after(30_000, self._check_for_updates)
 
         # Начальное обновление overlay/tray
         self._refresh_ui()
@@ -459,6 +462,24 @@ class WeeklyPlannerApp:
                 self.pulse.start()
             elif not has_overdue and self.pulse.is_active():
                 self.pulse.stop()
+
+    def _check_for_updates(self) -> None:
+        """DIST-04: non-blocking проверка /api/version. Logs only в Phase 6 MVP."""
+        if self._quit_requested:
+            return
+        try:
+            updater = UpdateManager(self.version)
+            result = updater.check()
+            if result is not None:
+                new_version, url = result
+                logger.info(
+                    "UPDATE available: %s → %s (url=%s)",
+                    self.version, new_version, url,
+                )
+            else:
+                logger.debug("Update check: already on latest (%s)", self.version)
+        except Exception as exc:
+            logger.debug("Update check failed (non-fatal): %s", exc)
 
     def _count_tasks(self) -> dict:
         """Подсчитать задачи: today (не выполнены) + overdue."""
