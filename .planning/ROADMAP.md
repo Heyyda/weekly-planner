@@ -143,12 +143,12 @@ Plans:
   - Полная перерисовка при каждом изменении задачи → потеря scroll position; нужны partial updates (только изменённый TaskWidget)
   - `after(100, overrideredirect)` для главного окна — та же проблема что у overlay
 
-**Plans:** 2/11 plans executed
+**Plans:** 3/11 plans executed
 
 Plans:
 - [x] 04-01-PLAN.md — Wave 0: conftest.py фикстуры Phase 4 (timestamped_task_factory, mock_storage, mock_theme_manager, dnd_event_simulator) + 04-VALIDATION.md финализация
 - [x] 04-02-PLAN.md — Wave 1 (TDD): client/ui/parse_input.py smart parse + format_date_range_ru — TASK-01 parse
-- [ ] 04-03-PLAN.md — Wave 1: client/ui/task_widget.py полностью переписан — 3 стиля + custom Canvas checkbox + hover icons — WEEK-04/05, TASK-02
+- [x] 04-03-PLAN.md — Wave 1: client/ui/task_widget.py полностью переписан — 3 стиля + custom Canvas checkbox + hover icons — WEEK-04/05, TASK-02
 - [ ] 04-04-PLAN.md — Wave 2: client/ui/day_section.py — header + 7 DaySection + empty '+' + inline add — WEEK-01, TASK-07
 - [ ] 04-05-PLAN.md — Wave 2: client/ui/week_navigation.py — prev/next/today + archive detect + keyboard + interpolate_palette — WEEK-02/03/06
 - [ ] 04-06-PLAN.md — Wave 3: client/ui/quick_capture.py — CTkToplevel popup + parse + edge-flip — TASK-01, TASK-07
@@ -212,7 +212,7 @@ Plans:
 | 1. Сервер и авторизация | 11/11 | Complete    | 2026-04-15 |
 | 2. Клиентское ядро | 8/8 | Complete    | 2026-04-16 |
 | 3. Оверлей и системная интеграция | 11/11 | Complete    | 2026-04-16 |
-| 4. Недельный вид и задачи | 2/11 | In Progress|  |
+| 4. Недельный вид и задачи | 3/11 | In Progress|  |
 | 5. Telegram-бот | 0/? | Not started | - |
 | 6. Дистрибуция и автообновление | 0/? | Not started | - |
 
