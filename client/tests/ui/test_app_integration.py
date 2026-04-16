@@ -291,3 +291,100 @@ def test_handle_logout_stops_sync_and_clears_auth(app_env, monkeypatch):
             app.root.destroy()
         except Exception:
             pass
+
+
+# ---------- Phase 4 integration ----------
+
+def test_quick_capture_created_in_setup(app_env, monkeypatch):
+    """WeeklyPlannerApp._setup создаёт QuickCapturePopup (authenticated branch)."""
+    from client.core import auth as auth_mod
+    from client.core import sync as sync_mod
+    monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: True)
+    monkeypatch.setattr(sync_mod.SyncManager, "start", lambda self: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "stop", lambda self, timeout=5.0: None)
+
+    app = WeeklyPlannerApp(version="test")
+    try:
+        app._setup()
+        assert app.quick_capture is not None
+    finally:
+        app._handle_quit()
+
+
+def test_overlay_right_click_wired_d01(app_env, monkeypatch):
+    """D-01: overlay.on_right_click == app._on_overlay_right_click."""
+    from client.core import auth as auth_mod
+    from client.core import sync as sync_mod
+    monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: True)
+    monkeypatch.setattr(sync_mod.SyncManager, "start", lambda self: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "stop", lambda self, timeout=5.0: None)
+
+    app = WeeklyPlannerApp(version="test")
+    try:
+        app._setup()
+        assert app.overlay.on_right_click == app._on_overlay_right_click
+    finally:
+        app._handle_quit()
+
+
+def test_main_window_receives_storage(app_env, monkeypatch):
+    """Phase 4: MainWindow инициализирован с storage (для CRUD)."""
+    from client.core import auth as auth_mod
+    from client.core import sync as sync_mod
+    monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: True)
+    monkeypatch.setattr(sync_mod.SyncManager, "start", lambda self: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "stop", lambda self, timeout=5.0: None)
+
+    app = WeeklyPlannerApp(version="test")
+    try:
+        app._setup()
+        assert app.main_window._storage is app.storage
+    finally:
+        app._handle_quit()
+
+
+def test_handle_quick_capture_save_creates_task(app_env, monkeypatch):
+    """_handle_quick_capture_save → storage.add_task + refresh."""
+    from datetime import date
+    from client.core import auth as auth_mod
+    from client.core import sync as sync_mod
+    monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: True)
+    monkeypatch.setattr(sync_mod.SyncManager, "start", lambda self: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "stop", lambda self, timeout=5.0: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "force_sync", lambda self: None)
+
+    app = WeeklyPlannerApp(version="test")
+    try:
+        app._setup()
+        initial = len(app.storage.get_visible_tasks())
+        app._handle_quick_capture_save("new task", date.today().isoformat(), None)
+        assert len(app.storage.get_visible_tasks()) == initial + 1
+    finally:
+        app._handle_quit()
+
+
+def test_trigger_quick_capture_centered_exists():
+    assert hasattr(WeeklyPlannerApp, "_trigger_quick_capture_centered")
+
+
+def test_on_overlay_right_click_exists():
+    assert hasattr(WeeklyPlannerApp, "_on_overlay_right_click")
+
+
+def test_task_style_change_delegated_to_main_window(app_env, monkeypatch):
+    """_handle_task_style_changed → main_window.handle_task_style_changed."""
+    from client.core import auth as auth_mod
+    from client.core import sync as sync_mod
+    monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: True)
+    monkeypatch.setattr(sync_mod.SyncManager, "start", lambda self: None)
+    monkeypatch.setattr(sync_mod.SyncManager, "stop", lambda self, timeout=5.0: None)
+
+    app = WeeklyPlannerApp(version="test")
+    try:
+        app._setup()
+        called = []
+        app.main_window.handle_task_style_changed = lambda s: called.append(s)
+        app._handle_task_style_changed("line")
+        assert called == ["line"]
+    finally:
+        app._handle_quit()

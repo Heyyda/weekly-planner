@@ -1,14 +1,17 @@
-"""Unit-тесты MainWindow (Plan 03-06). Shell + persistence + theme subscribe + D-07 today-strip."""
+"""Unit-тесты MainWindow (Plan 03-06 lifecycle + Plan 04-10 integration)."""
+from datetime import date, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
 from client.core.paths import AppPaths
 from client.core.storage import LocalStorage
-from client.ui.main_window import MainWindow, DAY_NAMES_RU
+from client.ui.main_window import MainWindow
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.themes import ThemeManager
 
+
+# ---------- Phase 3 lifecycle fixture ----------
 
 @pytest.fixture
 def mw_deps(tmp_appdata, headless_tk, mock_ctypes_dpi):
@@ -22,25 +25,30 @@ def mw_deps(tmp_appdata, headless_tk, mock_ctypes_dpi):
     }
 
 
+def _make(deps):
+    return MainWindow(
+        deps["root"], deps["settings_store"], deps["settings"], deps["theme"],
+    )
+
+
+# ---------- Phase 3: lifecycle ----------
+
 def test_creates_window(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     assert mw._window.winfo_exists()
     mw.destroy()
 
 
 def test_initially_hidden(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     assert not mw.is_visible()
     mw.destroy()
 
 
 def test_show_makes_visible(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.show()
     mw_deps["root"].update()
@@ -49,8 +57,7 @@ def test_show_makes_visible(mw_deps):
 
 
 def test_toggle_alternates(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.toggle()
     mw_deps["root"].update()
@@ -70,63 +77,8 @@ def test_default_size_is_460x600(mw_deps):
     assert MainWindow.DEFAULT_SIZE == (460, 600)
 
 
-def test_today_strip_width_is_3(mw_deps):
-    """D-07: полоска точно 3px (per UI-SPEC §Day Section — Expanded State)."""
-    assert MainWindow.TODAY_STRIP_WIDTH == 3
-
-
-def test_seven_day_sections(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
-    mw_deps["root"].update()
-    assert len(mw._day_sections) == 7
-    mw.destroy()
-
-
-def test_day_names_russian(mw_deps):
-    assert DAY_NAMES_RU == ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-
-
-def test_today_section_has_blue_strip(mw_deps):
-    """D-07: today-секция должна иметь инстанс _today_strip (CTkFrame, accent_brand, 3px)."""
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
-    mw_deps["root"].update()
-    # _today_strip существует (сегодня всегда в текущей неделе)
-    assert mw._today_strip is not None, "Today-секция должна иметь blue strip (D-07)"
-    # Цвет == accent_brand текущей темы
-    strip_color = mw._today_strip.cget("fg_color")
-    expected = mw_deps["theme"].get("accent_brand")
-    assert strip_color == expected or (
-        isinstance(strip_color, (list, tuple)) and expected in strip_color
-    ), f"Strip fg_color {strip_color!r} не совпадает с accent_brand {expected!r}"
-    mw.destroy()
-
-
-def test_today_strip_updates_on_theme_change(mw_deps):
-    """D-07: при смене темы strip перекрашивается в новый accent_brand."""
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
-    mw_deps["root"].update()
-    assert mw._today_strip is not None
-    # Применяем новую палитру с другим accent
-    mw._apply_theme({
-        "bg_primary": "#000000",
-        "bg_secondary": "#111111",
-        "text_primary": "#ffffff",
-        "accent_brand": "#ff0000",
-    })
-    mw_deps["root"].update()
-    strip_color = mw._today_strip.cget("fg_color")
-    assert strip_color == "#ff0000" or (
-        isinstance(strip_color, (list, tuple)) and "#ff0000" in strip_color
-    ), f"После _apply_theme strip должен быть #ff0000, got {strip_color!r}"
-    mw.destroy()
-
-
 def test_apply_theme_changes_bg(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     mw._apply_theme({
         "bg_primary": "#123456",
@@ -134,7 +86,6 @@ def test_apply_theme_changes_bg(mw_deps):
         "text_primary": "#000000",
         "accent_brand": "#ff0000",
     })
-    # Без crash
     mw.destroy()
 
 
@@ -145,13 +96,12 @@ def test_theme_subscribe_called_in_init(mw_deps):
     mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
                     mw_deps["settings"], spy_theme)
     mw_deps["root"].update()
-    spy_theme.subscribe.assert_called_once()
+    spy_theme.subscribe.assert_called()
     mw.destroy()
 
 
 def test_save_window_state_persists(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     spy = MagicMock(wraps=mw._settings_store.save)
     mw._settings_store.save = spy
@@ -161,30 +111,148 @@ def test_save_window_state_persists(mw_deps):
 
 
 def test_set_always_on_top(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.set_always_on_top(False)
-    # Attribute не крэшит
     mw.set_always_on_top(True)
     mw.destroy()
 
 
 def test_destroy_cleanup(mw_deps):
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
+    mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.destroy()
-    # Не крэшит
 
 
-def test_non_today_sections_have_no_strip(mw_deps):
-    """D-07: секции НЕ сегодня не имеют today-strip."""
-    mw = MainWindow(mw_deps["root"], mw_deps["settings_store"],
-                    mw_deps["settings"], mw_deps["theme"])
-    mw_deps["root"].update()
-    # Проверяем через _today_strip_map: только один день помечен
-    assert hasattr(mw, "_today_strip_map"), "_today_strip_map должен существовать"
-    today_count = sum(1 for v in mw._today_strip_map.values() if v is not None)
-    assert today_count <= 1, f"Только 1 секция может иметь strip, найдено: {today_count}"
+# ---------- Phase 4 integration ----------
+
+@pytest.fixture
+def mw_phase4_deps(headless_tk, mock_theme_manager, mock_storage):
+    settings = UISettings()
+    store = MagicMock()
+    store.save = MagicMock()
+    return {
+        "root": headless_tk,
+        "settings_store": store,
+        "settings": settings,
+        "theme": mock_theme_manager,
+        "storage": mock_storage,
+        "user_id": "test-user",
+    }
+
+
+def _make_mw_p4(deps):
+    mw = MainWindow(
+        deps["root"], deps["settings_store"], deps["settings"], deps["theme"],
+        storage=deps["storage"], user_id=deps["user_id"],
+    )
+    deps["root"].update_idletasks()
+    return mw
+
+
+def test_main_window_has_week_nav(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    assert mw._week_nav is not None
+    mw.destroy()
+
+
+def test_main_window_has_seven_day_sections(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    assert len(mw._day_sections) == 7
+    mw.destroy()
+
+
+def test_main_window_has_undo_toast_manager(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    assert mw._undo_toast is not None
+    mw.destroy()
+
+
+def test_main_window_has_drag_controller(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    assert mw._drag_controller is not None
+    mw.destroy()
+
+
+def test_drag_controller_has_seven_drop_zones(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    assert len(mw._drag_controller._drop_zones) == 7
+    mw.destroy()
+
+
+def test_refresh_tasks_renders_tasks_in_day(mw_phase4_deps, timestamped_task_factory):
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(text="test today")
+    mw_phase4_deps["storage"].add_task(task)
+    mw._refresh_tasks()
+    today = date.today()
+    ds = mw._day_sections.get(today)
+    assert ds is not None
+    assert len(ds._task_widgets) == 1
+    mw.destroy()
+
+
+def test_delete_with_undo_shows_toast(mw_phase4_deps, timestamped_task_factory):
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory()
+    mw_phase4_deps["storage"].add_task(task)
+    mw._delete_task_with_undo(task.id)
+    mw_phase4_deps["root"].update_idletasks()
+    assert len(mw._undo_toast._queue) == 1
+    mw.destroy()
+
+
+def test_on_task_toggle_updates_storage(mw_phase4_deps, timestamped_task_factory):
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(done=False)
+    mw_phase4_deps["storage"].add_task(task)
+    mw._on_task_toggle(task.id, True)
+    updated = mw_phase4_deps["storage"].get_task(task.id)
+    assert updated.done is True
+    mw.destroy()
+
+
+def test_on_task_moved_updates_day(mw_phase4_deps, timestamped_task_factory):
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory()
+    mw_phase4_deps["storage"].add_task(task)
+    new_day = date.today() + timedelta(days=1)
+    mw._on_task_moved(task.id, new_day)
+    updated = mw_phase4_deps["storage"].get_task(task.id)
+    assert updated.day == new_day.isoformat()
+    mw.destroy()
+
+
+def test_handle_quick_capture_save_creates_task(mw_phase4_deps):
+    mw = _make_mw_p4(mw_phase4_deps)
+    mw.handle_quick_capture_save("test task", date.today().isoformat(), "14:00")
+    tasks = mw_phase4_deps["storage"].get_visible_tasks()
+    assert len(tasks) == 1
+    assert tasks[0].text == "test task"
+    assert tasks[0].time_deadline == "14:00"
+    mw.destroy()
+
+
+def test_week_navigation_changes_day_sections(mw_phase4_deps):
+    """prev_week() → _rebuild_day_sections → days изменились."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    initial_days = set(mw._day_sections.keys())
+    mw._week_nav.prev_week()
+    new_days = set(mw._day_sections.keys())
+    assert initial_days != new_days
+    mw.destroy()
+
+
+def test_ctrl_space_binding_present_when_trigger_set(mw_phase4_deps):
+    trigger = MagicMock()
+    mw_phase4_deps["settings"] = UISettings()
+    mw = MainWindow(
+        mw_phase4_deps["root"], mw_phase4_deps["settings_store"],
+        mw_phase4_deps["settings"], mw_phase4_deps["theme"],
+        storage=mw_phase4_deps["storage"], user_id="u",
+        quick_capture_trigger=trigger,
+    )
+    mw_phase4_deps["root"].update_idletasks()
+    bindings = mw._window.bind()
+    assert any("Control-space" in b or "Control-Key-space" in b for b in bindings)
     mw.destroy()

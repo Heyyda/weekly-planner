@@ -38,6 +38,7 @@ from client.core.sync import SyncManager
 from client.ui.main_window import MainWindow
 from client.ui.overlay import OverlayManager
 from client.ui.pulse import PulseAnimator
+from client.ui.quick_capture import QuickCapturePopup
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.themes import ThemeManager
 from client.utils import autostart as autostart_mod
@@ -90,6 +91,7 @@ class WeeklyPlannerApp:
         self.pulse: Optional[PulseAnimator] = None
         self.notifications: Optional[NotificationManager] = None
         self.tray: Optional[TrayManager] = None
+        self.quick_capture: Optional[QuickCapturePopup] = None
 
         self._authenticated: bool = False
         self._quit_requested: bool = False
@@ -144,14 +146,30 @@ class WeeklyPlannerApp:
             self.root, self.settings_store, self.settings, self.theme,
         )
 
-        # 6. Main window (hidden)
+        # 6. Main window (hidden) — Phase 4: storage + user_id для CRUD
+        user_id = ""
+        try:
+            user = getattr(self.auth, "_user", None) or {}
+            user_id = str(user.get("id", "") or "")
+        except Exception:
+            user_id = ""
         self.main_window = MainWindow(
             self.root, self.settings_store, self.settings, self.theme,
+            storage=self.storage, user_id=user_id,
         )
 
-        # 7. Wire overlay → main window
+        # 6.5 Phase 4: QuickCapturePopup — D-01 wire через overlay right-click
+        self.quick_capture = QuickCapturePopup(
+            self.root, self.theme,
+            on_save=self._handle_quick_capture_save,
+        )
+        # Передать trigger в MainWindow для Ctrl+Space (D-30)
+        self.main_window._quick_capture_trigger = self._trigger_quick_capture_centered
+
+        # 7. Wire overlay → main window + quick capture
         self.overlay.on_click = self.main_window.toggle              # OVR-04
         self.overlay.on_top_changed = self.main_window.set_always_on_top  # OVR-06
+        self.overlay.on_right_click = self._on_overlay_right_click   # D-01
 
         # 8. Pulse animator — связан с overlay через on_frame callback
         def _on_pulse_frame(t: float) -> None:
@@ -281,6 +299,11 @@ class WeeklyPlannerApp:
                 self.sync.stop()
             if self.tray is not None:
                 self.tray.stop()
+            if self.quick_capture is not None:
+                try:
+                    self.quick_capture.destroy()
+                except Exception:
+                    pass
             if self.overlay is not None:
                 self.overlay.destroy()
             if self.main_window is not None:
@@ -307,8 +330,54 @@ class WeeklyPlannerApp:
             self.main_window.set_always_on_top(enabled)
 
     def _handle_task_style_changed(self, style: str) -> None:
-        """Phase 4 перерисует task widgets. Phase 3 — persist через tray (уже сделан)."""
-        logger.info("Task style изменён на %s (Phase 4 перерисует)", style)
+        """Phase 4: style changed → MainWindow перерисовывает task widgets."""
+        if self.main_window is not None:
+            self.main_window.handle_task_style_changed(style)
+        else:
+            logger.info("Task style изменён на %s (main_window отсутствует)", style)
+
+    # ---- Phase 4: Quick capture ----
+
+    def _on_overlay_right_click(self) -> None:
+        """D-01: right-click на overlay → quick capture popup."""
+        if self.quick_capture is None or self.overlay is None:
+            return
+        try:
+            x, y = self.overlay.get_position()
+        except Exception:
+            x, y = 0, 0
+        self.quick_capture.show_at_overlay(x, y, 56)
+
+    def _handle_quick_capture_save(
+        self, text: str, day_iso: str, time: Optional[str],
+    ) -> None:
+        """QuickCapturePopup.on_save → MainWindow → storage.add_task."""
+        if self.main_window is None:
+            return
+        self.main_window.handle_quick_capture_save(text, day_iso, time)
+        if self.sync is not None:
+            try:
+                self.sync.force_sync()
+            except Exception as exc:
+                logger.debug("force_sync after quick capture: %s", exc)
+        try:
+            self._refresh_ui()
+        except Exception as exc:
+            logger.debug("_refresh_ui after quick capture: %s", exc)
+
+    def _trigger_quick_capture_centered(self) -> None:
+        """D-30 Ctrl+Space: quick capture в центре main window."""
+        if self.quick_capture is None or self.main_window is None:
+            return
+        try:
+            mw_x = self.main_window._window.winfo_x()
+            mw_y = self.main_window._window.winfo_y()
+            mw_w = self.main_window._window.winfo_width()
+            popup_x = mw_x + mw_w // 2 - 200
+            popup_y = mw_y + 60
+        except Exception:
+            popup_x, popup_y = 200, 200
+        self.quick_capture.show_centered(popup_x, popup_y)
 
     def _handle_notifications_mode_changed(self, mode: str) -> None:
         """Передать смену режима уведомлений в NotificationManager."""
