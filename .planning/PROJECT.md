@@ -23,7 +23,18 @@
 - ✓ Rate-limit через slowapi (1/мин + 5/час per IP) на `/auth/request-code`
 - ✓ Allow-list пользователей через `ALLOWED_USERNAMES` env
 - ✓ 92 pytest (unit + integration + E2E), 5/5 smoke-tests на проде
-- ⚠ Soft-unverified (отложено): реальная доставка Telegram-кода самопроверится при первой авторизации Phase 2-3; VPS-reboot survival при следующем плановом обслуживании
+- ⚠ Soft-unverified (отложено): реальная доставка Telegram-кода самопроверится при первой авторизации Phase 3-6; VPS-reboot survival при следующем плановом обслуживании
+
+**Клиентское ядро (Phase 2 complete 2026-04-16):**
+- ✓ Локальный кеш `cache.json` в `%APPDATA%/ЛичныйЕженедельник/` с atomic write (`os.replace`)
+- ✓ Optimistic UI: operation queue `pending_changes` в-памяти + persisted под `threading.Lock` (race-free доказано 5000-op stress test)
+- ✓ Фоновый `SyncManager` — daemon thread с `threading.Event` wake (30s poll + immediate push)
+- ✓ Exponential backoff 1s→60s, infinite retries, passive offline detection через HTTP errors
+- ✓ Server-wins silent merge, soft-delete tombstones, opportunistic cleanup после 1h
+- ✓ Full resync (since=None) при >5min offline; pending push ПЕРЕД resync
+- ✓ AuthManager: correct `/auth/request-code` endpoints, keyring rotation, access-token RAM-only
+- ✓ SecretFilter — JWT/refresh не попадают в логи (D-29 verified в реальном flow)
+- ✓ 106 pytest (unit + stress + E2E через `requests-mock` FakeServer), Phase 1 сервер без регрессии
 
 ### Active
 
@@ -50,11 +61,6 @@
 - [ ] Настраиваемые уведомления (пульсация / Windows toast / тихо)
 - [ ] Автозапуск Windows (опциональный тоггл)
 - [ ] Один .exe через PyInstaller
-
-**Синхронизация:**
-- [ ] Optimistic UI: локальный кеш + фоновый sync
-- [ ] Server wins при конфликтах
-- [ ] Полноценная оффлайн-работа, sync при восстановлении сети
 
 **Telegram-бот (мобильный ввод):**
 - [ ] Авторизация по Telegram username (код подтверждения)
@@ -135,4 +141,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after Phase 1 completion — server live at planner.heyda.ru*
+*Last updated: 2026-04-16 after Phase 2 completion — client core (storage + sync) ready, 106 tests green*
