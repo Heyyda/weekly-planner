@@ -40,18 +40,22 @@ def test_empty_state_has_plus_center_white():
 
 
 def test_badge_appears_when_count_positive_and_size_large():
-    """Test 5: task_count=3 + size=56 → badge присутствует в правом верхнем углу."""
+    """Test 5: task_count=3 + size=56 → badge присутствует в правом верхнем углу.
+
+    Badge — белый ellipse 16x16 начиная с x=40, y=0.
+    Проверяем (44, 4) — внутри ellipse, вне зоны текста однозначно белый.
+    """
     img = render_overlay_image(56, "default", task_count=3)
-    # Badge location: правый верхний угол, центр badge ≈ (48, 8) — белый
-    r, g, b, a = img.getpixel((48, 8))
+    # (44, 4): устойчиво в пределах badge ellipse и вне текста
+    r, g, b, a = img.getpixel((44, 4))
     assert (r, g, b) == (255, 255, 255), f"Badge area должен быть белым, got ({r},{g},{b})"
 
 
 def test_no_badge_when_count_zero():
     """Test 6: task_count=0 → no badge."""
     img = render_overlay_image(56, "default", task_count=0)
-    # В месте badge не должно быть белого ellipse
-    r, g, b, a = img.getpixel((48, 8))
+    # (44, 4): в этом месте при badge=off будет синий фон (не белый)
+    r, g, b, a = img.getpixel((44, 4))
     assert not (r == 255 and g == 255 and b == 255), "При task_count=0 badge быть не должно"
 
 
@@ -82,8 +86,8 @@ def test_overdue_pulse_half_is_red():
 def test_overdue_badge_shows_overdue_count():
     """Test 10: state='overdue' + overdue_count=2 + size=56 → badge показывает overdue_count."""
     img = render_overlay_image(56, "overdue", task_count=10, overdue_count=3)
-    # Badge присутствует при overdue_count > 0
-    r, g, b, a = img.getpixel((48, 8))
+    # Badge присутствует при overdue_count > 0 — проверяем (44, 4) — внутри ellipse, вне текста
+    r, g, b, a = img.getpixel((44, 4))
     assert (r, g, b) == (255, 255, 255), "Overdue badge должен быть белым"
 
 
