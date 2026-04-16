@@ -1,78 +1,134 @@
 """
-Theme Manager — тёмная и светлая темы.
+ThemeManager — 3 темы per UI-SPEC (light cream, dark warm, beige sepia) + subscriber pattern.
 
-Цветовая палитра минималистичная, приятная для глаз.
-Вдохновение: Notion sidebar, Todoist, Linear.
+Паттерн subscribe/notify избегает PITFALLS.md Pitfall 5: виджеты НЕ хардкодят цвета,
+а получают палитру через callback при смене темы. Live-switching без рестарта.
+
+Все hex-токены — verbatim из .planning/phases/03-overlay-system/03-UI-SPEC.md §Color Palette.
 """
+from __future__ import annotations
 
+import logging
+from typing import Callable, Optional
 
-# Тёмная тема
-DARK = {
-    "bg_primary": "#1a1a2e",       # фон панели
-    "bg_secondary": "#16213e",     # фон секций
-    "bg_hover": "#1f2b47",         # при наведении
-    "bg_today": "#1a2744",         # подсветка сегодня
-    "text_primary": "#e0e0e0",     # основной текст
-    "text_secondary": "#8a8a9a",   # приглушённый текст
-    "text_done": "#555566",        # зачёркнутый текст
-    "accent": "#4a9eff",           # акцентный синий
-    "accent_hover": "#6ab4ff",
-    "priority_high": "#ff4757",    # красный (приоритет 1)
-    "priority_low": "#747d8c",     # серый (приоритет 3)
-    "overdue_bg": "#2d1b1b",       # фон просроченной задачи
-    "overdue_dot": "#ff6b6b",      # индикатор просрочки
-    "border": "#2a2a3e",           # разделители
-    "scrollbar": "#333355",
-    "trigger_strip": "#4a9eff",    # полоска-триггер sidebar
+import customtkinter as ctk
+
+logger = logging.getLogger(__name__)
+
+# ---- Palettes (verbatim from UI-SPEC §Color Palette) ----
+
+PALETTES: dict[str, dict[str, str]] = {
+    "light": {
+        "bg_primary": "#F5EFE6",
+        "bg_secondary": "#EDE6D9",
+        "bg_tertiary": "#E6DDC9",
+        "text_primary": "#2B2420",
+        "text_secondary": "#6B5E4E",
+        "text_tertiary": "#9A8F7D",
+        "accent_brand": "#1E73E8",
+        "accent_brand_light": "#4EA1FF",
+        "accent_done": "#38A169",
+        "accent_overdue": "#E85A5A",
+        "shadow_card": "rgba(70, 55, 40, 0.08)",
+    },
+    "dark": {
+        "bg_primary": "#1F1B16",
+        "bg_secondary": "#2B2620",
+        "bg_tertiary": "#3A332C",
+        "text_primary": "#F0E9DC",
+        "text_secondary": "#B8AE9C",
+        "text_tertiary": "#7A715F",
+        "accent_brand": "#4EA1FF",
+        "accent_brand_light": "#85BFFF",
+        "accent_done": "#48B97D",
+        "accent_overdue": "#F07272",
+        "shadow_card": "rgba(0, 0, 0, 0.3)",
+    },
+    "beige": {
+        "bg_primary": "#E8DDC4",
+        "bg_secondary": "#D9CFB8",
+        "bg_tertiary": "#C9BEA2",
+        "text_primary": "#3D2F1F",
+        "text_secondary": "#6E5F48",
+        "text_tertiary": "#968769",
+        "accent_brand": "#2966C4",
+        "accent_brand_light": "#4E86DA",
+        "accent_done": "#4A7A3D",
+        "accent_overdue": "#C04B3C",
+        "shadow_card": "rgba(80, 55, 30, 0.12)",
+    },
 }
 
-# Светлая тема
-LIGHT = {
-    "bg_primary": "#ffffff",
-    "bg_secondary": "#f8f9fa",
-    "bg_hover": "#f0f1f3",
-    "bg_today": "#eef4ff",
-    "text_primary": "#1a1a2e",
-    "text_secondary": "#6c757d",
-    "text_done": "#adb5bd",
-    "accent": "#2563eb",
-    "accent_hover": "#3b82f6",
-    "priority_high": "#dc2626",
-    "priority_low": "#9ca3af",
-    "overdue_bg": "#fef2f2",
-    "overdue_dot": "#ef4444",
-    "border": "#e5e7eb",
-    "scrollbar": "#d1d5db",
-    "trigger_strip": "#2563eb",
-}
-
-# Шрифты
-FONTS = {
-    "heading": ("Segoe UI", 14, "bold"),   # заголовки дней
-    "task": ("Segoe UI", 13),              # текст задач
-    "task_done": ("Segoe UI", 13),         # + overstrike
-    "small": ("Segoe UI", 11),             # мета-информация
-    "stats": ("Segoe UI", 12, "bold"),     # статистика
-    "nav": ("Segoe UI", 13, "bold"),       # навигация по неделям
-    "notes": ("Consolas", 12),             # заметки (моно)
+# ---- Fonts (verbatim from UI-SPEC §Typography) ----
+FONTS: dict[str, tuple] = {
+    "h1":      ("Segoe UI Variable", 14, "bold"),
+    "body":    ("Segoe UI Variable", 13, "normal"),
+    "caption": ("Segoe UI Variable", 11, "normal"),
+    "icon":    ("Segoe UI Variable", 28, "bold"),
+    "mono":    ("Cascadia Code", 11, "normal"),
 }
 
 
 class ThemeManager:
     """
-    Переключение тем и применение цветов к виджетам.
+    Держит текущую тему, оповещает подписчиков при set_theme.
+
+    Canonical usage:
+        tm = ThemeManager()
+        tm.subscribe(lambda palette: widget.configure(fg_color=palette["bg_primary"]))
+        tm.set_theme("dark")  # все подписчики вызываются
     """
 
-    def __init__(self, mode: str = "dark"):
-        self.mode = mode
-        self.colors = DARK if mode == "dark" else LIGHT
+    def __init__(self, initial: str = "light") -> None:
+        self._theme: str = initial if initial in PALETTES else "light"
+        self._callbacks: list[Callable[[dict[str, str]], None]] = []
 
-    def toggle(self):
-        """Переключить тему."""
-        self.mode = "light" if self.mode == "dark" else "dark"
-        self.colors = DARK if self.mode == "dark" else LIGHT
-        # TODO: применить ко всем виджетам
+    @property
+    def current(self) -> str:
+        """Текущая активная тема: 'light' | 'dark' | 'beige'."""
+        return self._theme
+
+    def subscribe(self, callback: Callable[[dict[str, str]], None]) -> None:
+        """Регистрация callback — каждый виджет/менеджер вызывает при старте."""
+        self._callbacks.append(callback)
+
+    def set_theme(self, theme: str) -> None:
+        """
+        Установить тему. Поддерживает 'system' — резолвит через detect_system_theme().
+        Вызывает все callbacks с новой палитрой.
+        """
+        if theme == "system":
+            theme = self.detect_system_theme()
+        if theme not in PALETTES:
+            logger.warning("Неизвестная тема %r — fallback на light", theme)
+            theme = "light"
+        self._theme = theme
+        # CustomTkinter built-in mode (для стандартных CTk виджетов)
+        try:
+            ctk.set_appearance_mode("dark" if theme == "dark" else "light")
+        except Exception as exc:
+            logger.debug("CTk set_appearance_mode failed: %s", exc)
+        palette = PALETTES[theme]
+        for cb in self._callbacks:
+            try:
+                cb(palette)
+            except Exception as exc:
+                logger.error("Theme callback failed: %s", exc)
 
     def get(self, key: str) -> str:
-        """Получить цвет по ключу."""
-        return self.colors.get(key, "#ffffff")
+        """Получить hex-цвет из текущей палитры. Fallback на #ffffff если key неизвестен."""
+        return PALETTES[self._theme].get(key, "#ffffff")
+
+    @staticmethod
+    def detect_system_theme() -> str:
+        """Reads HKCU\\...\\Themes\\Personalize\\AppsUseLightTheme. Returns 'light' or 'dark'."""
+        try:
+            import winreg
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                return "light" if value else "dark"
+        except Exception:
+            return "light"
