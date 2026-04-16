@@ -26,14 +26,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Client Storage + Sync (SYNC)
 
-- [ ] **SYNC-01**: Локальный кеш задач в JSON-файле `cache.json` в AppData (оффлайн-работа)
-- [ ] **SYNC-02**: Optimistic UI: операции применяются к кешу мгновенно, ставятся в очередь `pending_changes`
+- [x] **SYNC-01**: Локальный кеш задач в JSON-файле `cache.json` в AppData (оффлайн-работа)
+- [x] **SYNC-02**: Optimistic UI: операции применяются к кешу мгновенно, ставятся в очередь `pending_changes`
 - [ ] **SYNC-03**: Фоновый sync-поток периодически отправляет `pending_changes` и забирает delta с сервера
-- [ ] **SYNC-04**: `threading.Lock` на доступ к `pending_changes` из UI- и sync-потоков (предотвращение race condition)
+- [x] **SYNC-04**: `threading.Lock` на доступ к `pending_changes` из UI- и sync-потоков (предотвращение race condition)
 - [ ] **SYNC-05**: При конфликте server-wins (серверный `updated_at` переопределяет локальный)
 - [x] **SYNC-06**: UUID ID генерируются на клиенте — CREATE идемпотентен, не ждёт сервер
 - [ ] **SYNC-07**: При восстановлении сети после оффлайн — автоматический full resync всех накопленных изменений
-- [ ] **SYNC-08**: Tombstone для удалений (`deleted_at`) — не создавать задачу заново на другом устройстве
+- [x] **SYNC-08**: Tombstone для удалений (`deleted_at`) — не создавать задачу заново на другом устройстве
 
 ### Overlay — Кружок (OVR)
 
@@ -169,14 +169,14 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SRV-04 | Phase 1 | Complete |
 | SRV-05 | Phase 1 | Pending |
 | SRV-06 | Phase 1 | Complete |
-| SYNC-01 | Phase 2 | Pending |
-| SYNC-02 | Phase 2 | Pending |
+| SYNC-01 | Phase 2 | Complete |
+| SYNC-02 | Phase 2 | Complete |
 | SYNC-03 | Phase 2 | Pending |
-| SYNC-04 | Phase 2 | Pending |
+| SYNC-04 | Phase 2 | Complete |
 | SYNC-05 | Phase 2 | Pending |
 | SYNC-06 | Phase 2 | Complete |
 | SYNC-07 | Phase 2 | Pending |
-| SYNC-08 | Phase 2 | Pending |
+| SYNC-08 | Phase 2 | Complete |
 | OVR-01 | Phase 3 | Pending |
 | OVR-02 | Phase 3 | Pending |
 | OVR-03 | Phase 3 | Pending |
