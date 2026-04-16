@@ -127,3 +127,42 @@ updated: 2026-04-18
 - [ ] 04-11 human-verify checkpoint completed (финальный gate)
 
 **Approval:** ready for execution.
+
+---
+
+## Execution Report (Plan 04-11 final)
+
+**Test suite:** `python -m pytest client/tests/ --timeout=120`
+**Result:** 478 passed, 10 pre-existing errors в `test_e2e_phase3.py`
+(session-scoped `headless_tk` pyimage accumulation — не регрессии Phase 4,
+проходят изолированно через `pytest client/tests/ui/test_e2e_phase3.py`).
+
+### Coverage Verification
+
+| REQ-ID  | Test(s) | Plan | Status |
+|---------|---------|------|--------|
+| WEEK-01 | test_e2e_tasks_distributed_to_correct_days, test_e2e_empty_day_shows_plus | 04-04, 04-11 | ✅ |
+| WEEK-02 | test_e2e_navigate_prev_week, test_nav_arrows_change_week | 04-05, 04-11 | ✅ |
+| WEEK-03 | test_e2e_today_button_returns, test_today_btn_visibility | 04-05, 04-11 | ✅ |
+| WEEK-04 | test_e2e_overdue_task_rendered, test_overdue_checkbox_color | 04-03, 04-11 | ✅ |
+| WEEK-05 | test_e2e_task_style_switch_rebuilds, test_three_styles | 04-03, 04-11 | ✅ |
+| WEEK-06 | test_e2e_archive_mode_activates_on_past, test_e2e_archive_mode_deactivates_on_today | 04-05, 04-11 | ✅ |
+| TASK-01 | test_e2e_add_via_quick_capture_save, test_parse_* | 04-02, 04-06, 04-11 | ✅ |
+| TASK-02 | test_e2e_toggle_done_updates_storage, test_toggle_done | 04-03, 04-11 | ✅ |
+| TASK-03 | test_e2e_edit_dialog_saves_changes, test_dialog_title_russian | 04-07, 04-11 | ✅ |
+| TASK-04 | test_e2e_delete_shows_undo_toast, test_e2e_undo_restores_task | 04-08, 04-11 | ✅ |
+| TASK-05 | test_e2e_move_task_between_days, test_find_drop_zone_hit | 04-09, 04-11 | ✅ |
+| TASK-06 | test_e2e_move_to_next_week, test_next_week_zone_shown_on_drag_start | 04-09, 04-11 | ✅ |
+| TASK-07 | test_e2e_position_sort_preserved | 04-04, 04-11 | ✅ |
+
+**Coverage: 13/13 ✓**
+
+### Human-Verify Checkpoint
+
+Осталось финальное — Никита запускает `python main.py` на Windows и подтверждает
+9 Success Criteria из 04-UI-SPEC. После одобрения обновить секцию ниже:
+
+```yaml
+approved_by_owner: <YYYY-MM-DD>
+approval_notes: <optional>
+```
