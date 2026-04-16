@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-client-core/02-06-PLAN.md
-last_updated: "2026-04-16T04:03:19.949Z"
+stopped_at: Completed 02-07-PLAN.md (SyncManager rewrite)
+last_updated: "2026-04-16T04:08:15.272Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 02 (client-core) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Plan: 7 of 8
 | Phase 02-client-core P04 | 116 | 2 tasks | 2 files |
 | Phase 02-client-core P05 | 8 | 2 tasks | 2 files |
 | Phase 02-client-core P06 | 2 | 2 tasks | 2 files |
+| Phase 02-client-core P07 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Recent decisions affecting current work:
 - [Phase 02-client-core]: ApiResult никогда не raise — SyncManager инспектирует поля (offline-tolerant design)
 - [Phase 02-client-core]: 401 retry ровно один раз: refresh_access() + retry; второй 401 → auth_expired()
 - [Phase 02-client-core]: SYNC-06: task_id стабилен в TaskChange при ретраях — сервер принимает CREATE идемпотентно
+- [Phase 02-07]: threading.Event.wait(timeout) вместо time.sleep — force_sync() устанавливает Event, поток просыпается немедленно без ожидания 30s
+- [Phase 02-07]: Drain pending ПЕРЕД stale resync (D-20): drained + since=None в одном post_sync вызове, локальные изменения не теряются
+- [Phase 02-07]: client error (4xx) останавливает sync loop через _auth_expired флаг — retry при ошибке клиента бессмысленен
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T04:03:19.947Z
-Stopped at: Completed 02-client-core/02-06-PLAN.md
+Last session: 2026-04-16T04:08:15.270Z
+Stopped at: Completed 02-07-PLAN.md (SyncManager rewrite)
 Resume file: None
