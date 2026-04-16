@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-overlay-system/03-02-PLAN.md
-last_updated: "2026-04-16T06:57:41.901Z"
+stopped_at: Completed 03-overlay-system 03-03-PLAN.md (icon_compose.py)
+last_updated: "2026-04-16T06:58:46.873Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 30
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 03 (overlay-system) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Plan: 3 of 11
 | Phase 02-client-core P08 | 15 | 2 tasks | 2 files |
 | Phase 03-overlay-system P01 | 2 | 1 tasks | 2 files |
 | Phase 03-overlay-system P02 | 3 | 2 tasks | 4 files |
+| Phase 03-overlay-system P03 | 4m | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,8 @@ Recent decisions affecting current work:
 - [Phase 03-overlay-system]: mock_ctypes_dpi с raising=False в monkeypatch.setattr — ctypes.windll атрибуты могут отсутствовать
 - [Phase 03-overlay-system]: PALETTES verbatim из UI-SPEC — никакого изобретения hex; shadow_card как rgba() строка для Pillow совместимости
 - [Phase 03-overlay-system]: SettingsStore — тонкая обёртка без новой I/O (D-25); UISettings.overlay_position как list[int] для JSON round-trip
+- [Phase 03-overlay-system]: Badge тест-координаты (44,4) вместо центра (48,8) — текст badge перекрывает центр ellipse
+- [Phase 03-overlay-system]: pulse_t > 1.0 нормализуется как периодичность t=t-int(t), позволяет монотонный счётчик в PulseAnimator
 
 ### Pending Todos
 
@@ -133,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T06:57:41.896Z
-Stopped at: Completed 03-overlay-system/03-02-PLAN.md
+Last session: 2026-04-16T06:58:46.869Z
+Stopped at: Completed 03-overlay-system 03-03-PLAN.md (icon_compose.py)
 Resume file: None
