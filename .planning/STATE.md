@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-overlay-system-08-PLAN.md
-last_updated: "2026-04-16T08:17:24.874Z"
+stopped_at: Completed 03-overlay-system-03-10-PLAN.md
+last_updated: "2026-04-16T08:23:45.087Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 30
-  completed_plans: 28
+  completed_plans: 29
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 03 (overlay-system) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Plan: 8 of 11
 | Phase 03-overlay-system P05 | 5 | 1 tasks | 3 files |
 | Phase 03-overlay-system P09 | 2 | 1 tasks | 2 files |
 | Phase 03-overlay-system P08 | 15 | 1 tasks | 3 files |
+| Phase 03-overlay-system P10 | 3 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase 03-overlay-system]: Mode 'silent' и 'pulse_only' оба блокируют send_toast → returns False (NOTIF-01/04)
 - [Phase 03-overlay-system]: winotify импортируется лениво внутри _do_show_toast — graceful degradation если не установлен
 - [Phase 03-overlay-system]: Dedup через set((task_id, kind)) — позволяет получить оба уведомления (approaching/overdue) для одной задачи
+- [Phase 03-overlay-system]: Login placeholder при auth=False: overlay+tray без main_window/sync/pulse (Phase 4+ реализует login dialog)
+- [Phase 03-overlay-system]: _handle_top_changed_from_tray напрямую меняет overlay._overlay.attributes избегая рекурсии через on_top_changed hook
 
 ### Pending Todos
 
@@ -149,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T08:17:24.870Z
-Stopped at: Completed 03-overlay-system-08-PLAN.md
+Last session: 2026-04-16T08:23:45.083Z
+Stopped at: Completed 03-overlay-system-03-10-PLAN.md
 Resume file: None
