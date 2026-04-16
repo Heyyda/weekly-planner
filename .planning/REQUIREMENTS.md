@@ -41,7 +41,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **OVR-02**: Позиция кружка запоминается между запусками (`settings.json`)
 - [x] **OVR-03**: Работает на multi-monitor setup (ctypes EnumDisplayMonitors)
 - [x] **OVR-04**: Клик по кружку открывает/закрывает главное окно с недельным планом
-- [ ] **OVR-05**: Кружок визуально пульсирует при наличии просроченных задач (`done=false && day < today`)
+- [x] **OVR-05**: Кружок визуально пульсирует при наличии просроченных задач (`done=false && day < today`)
 - [x] **OVR-06**: Режим "всегда поверх всех окон" — переключаемый, применяется и к кружку, и к окну
 
 ### Week View — Главное окно (WEEK)
@@ -181,7 +181,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | OVR-02 | Phase 3 | Complete |
 | OVR-03 | Phase 3 | Complete |
 | OVR-04 | Phase 3 | Complete |
-| OVR-05 | Phase 3 | Pending |
+| OVR-05 | Phase 3 | Complete |
 | OVR-06 | Phase 3 | Complete |
 | TRAY-01 | Phase 3 | Pending |
 | TRAY-02 | Phase 3 | Pending |
