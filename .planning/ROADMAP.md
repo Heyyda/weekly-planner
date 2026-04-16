@@ -104,7 +104,7 @@ Plans:
   - `overrideredirect(True)` на Windows 11 требует `after(100, ...)` delay — см. PITFALLS.md Pitfall 1 / STACK.md Gotcha 1
   - pystray + Tkinter: использовать `run_detached()` + `root.after(0, callback)` — см. PITFALLS.md Pitfall 2
 
-**Plans:** 5/11 plans executed
+**Plans:** 7/11 plans executed
 
 Plans:
 - [x] 03-01-PLAN.md — Wave 0: extend conftest.py с headless_tk + mock_pystray/winotify/winreg/ctypes_dpi fixtures
@@ -112,8 +112,8 @@ Plans:
 - [x] 03-03-PLAN.md — Wave 1: icon_compose.render_overlay_image (Pillow композитор overlay/tray иконки)
 - [x] 03-04-PLAN.md — Wave 2: OverlayManager — draggable 56×56 + position persist + multi-monitor — OVR-01, 02, 03, 04, 06
 - [x] 03-05-PLAN.md — Wave 2: PulseAnimator — 60fps root.after driver — OVR-05
-- [ ] 03-06-PLAN.md — Wave 3: MainWindow shell — resizable + аккордеон Пн-Вс + theme subscribe
-- [ ] 03-07-PLAN.md — Wave 3: TrayManager — pystray run_detached + все callbacks через root.after(0) — TRAY-01..04
+- [x] 03-06-PLAN.md — Wave 3: MainWindow shell — resizable + аккордеон Пн-Вс + theme subscribe
+- [x] 03-07-PLAN.md — Wave 3: TrayManager — pystray run_detached + все callbacks через root.after(0) — TRAY-01..04
 - [ ] 03-08-PLAN.md — Wave 4: NotificationManager — winotify daemon thread + 3 режима + deadline detection — NOTIF-01..04
 - [ ] 03-09-PLAN.md — Wave 4: autostart.py rewrite — ASCII value name LichnyEzhednevnik (frozen-exe safety)
 - [ ] 03-10-PLAN.md — Wave 5: WeeklyPlannerApp integration — wire all 6 компонентов, Cyrillic-path main.py
@@ -198,7 +198,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Сервер и авторизация | 11/11 | Complete    | 2026-04-15 |
 | 2. Клиентское ядро | 8/8 | Complete    | 2026-04-16 |
-| 3. Оверлей и системная интеграция | 5/11 | In Progress|  |
+| 3. Оверлей и системная интеграция | 7/11 | In Progress|  |
 | 4. Недельный вид и задачи | 0/? | Not started | - |
 | 5. Telegram-бот | 0/? | Not started | - |
 | 6. Дистрибуция и автообновление | 0/? | Not started | - |
