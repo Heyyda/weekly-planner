@@ -36,30 +36,35 @@
 - ✓ SecretFilter — JWT/refresh не попадают в логи (D-29 verified в реальном flow)
 - ✓ 106 pytest (unit + stress + E2E через `requests-mock` FakeServer), Phase 1 сервер без регрессии
 
+**Оверлей + системная интеграция (Phase 3 complete 2026-04-17):**
+- ✓ Синий закруглённый **квадрат** 56×56 (Things-style) на рабочем столе — перетаскиваемый, мульти-монитор через pure ctypes `EnumDisplayMonitors` (без pywin32)
+- ✓ Клик по квадрату → открывает/закрывает главное окно (аккордеон Пн-Вс, ресайзабельное, размер+позиция персистят)
+- ✓ Пульсация при просроченных задачах (`OVR-05`) — 60fps `root.after` цикл, blue→red→blue 2.5s
+- ✓ Always-on-top toggle распространяется одновременно на квадрат и окно (D-11/OVR-06)
+- ✓ **Три темы** — light (кремовая), dark (warm dark), beige (sepia) — палитра Claude Code; переключение мгновенное
+- ✓ Three task-block styles (cards / lines / minimal) — выбор в tray-меню, рендер контента — Phase 4
+- ✓ System tray с полным меню (pystray `run_detached()` + все callbacks через `root.after(0, ...)` — PITFALL 2)
+- ✓ Windows toast notifications (winotify в daemon-потоке — PITFALL 3) — 3 режима: звук+pulse / только pulse / тихо
+- ✓ Автозапуск Windows — `HKCU\...\Run`, ASCII value name `LichnyEzhednevnik` (frozen-exe safe)
+- ✓ Today-секция визуально выделена: синяя 3px полоска слева + bold заголовок (D-07)
+- ✓ 268 pytest (UI unit + E2E через headless Tk), все PITFALL 1-7 grep-верифицированы
+- ✓ Human-verify пройден 17/17 визуальных критериев на реальной Windows 11
+
 ### Active
 
 <!-- v1 scope — "всё сразу" по решению владельца. Это гипотезы, пока не отгружены и не отработали хотя бы неделю реального использования. -->
 
-**Клиент Windows — Overlay:**
-- [ ] Перетаскиваемый круглый оверлей на рабочем столе (2 монитора, позиция запоминается)
-- [ ] Клик по кружку открывает компактное окно с текущей неделей
-- [ ] Пульсация кружка при просроченных задачах
-- [ ] Режим "поверх всех окон" (переключаемый, распространяется и на кружок, и на окно)
-
-**Клиент Windows — Окно с задачами:**
-- [ ] Недельный вид (7 дней, задачи как минималистичные закруглённые блоки)
+**Клиент Windows — Окно с задачами (Phase 4 — next):**
+- [ ] Недельный вид с рендерингом задач (3 стиля уже переключаются, нужен контент)
 - [ ] Добавить задачу: текст + день + время/дедлайн (ввод в 2-3 действия)
 - [ ] Отметить задачу выполненной
-- [ ] Drag-and-drop задач между днями
+- [ ] Редактировать / удалить задачу
+- [ ] Drag-and-drop задач между днями (⚠ РИСК: CustomTkinter без native DnD)
 - [ ] Drag-and-drop задач на следующую неделю
-- [ ] Подсветка просроченных (done=false && day < today)
-- [ ] Навигация "предыдущая/следующая неделя" (стрелки)
-- [ ] Архив прошлых недель (отмотать назад и увидеть что было)
+- [ ] Навигация "предыдущая/следующая неделя" (каркас в Phase 3)
+- [ ] Архив прошлых недель
 
-**Клиент Windows — Системная интеграция:**
-- [ ] Иконка в system tray с меню настроек (on/off фишки, закрепить поверх, "не беспокоить")
-- [ ] Настраиваемые уведомления (пульсация / Windows toast / тихо)
-- [ ] Автозапуск Windows (опциональный тоггл)
+**Дистрибуция (Phase 6):**
 - [ ] Один .exe через PyInstaller
 
 **Telegram-бот (мобильный ввод):**
@@ -141,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after Phase 2 completion — client core (storage + sync) ready, 106 tests green*
+*Last updated: 2026-04-17 after Phase 3 completion — overlay+tray+notifications live, 268 tests green, human-verified на Windows 11*
