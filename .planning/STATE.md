@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-overlay-system-09-PLAN.md
-last_updated: "2026-04-16T08:15:54.148Z"
+stopped_at: Completed 03-overlay-system-08-PLAN.md
+last_updated: "2026-04-16T08:17:24.874Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 30
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 03 (overlay-system) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Plan: 7 of 11
 | Phase 03-overlay-system P04 | 3 | 1 tasks | 2 files |
 | Phase 03-overlay-system P05 | 5 | 1 tasks | 3 files |
 | Phase 03-overlay-system P09 | 2 | 1 tasks | 2 files |
+| Phase 03-overlay-system P08 | 15 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,9 @@ Recent decisions affecting current work:
 - [Phase 03-overlay-system]: PulseAnimator отдельный модуль (SRP), интегрируется в Plan 03-10 через on_frame callback
 - [Phase 03-overlay-system]: autostart: ASCII value name LichnyEzhednevnik вместо кириллицы — frozen-exe safety в HKCU\...\Run
 - [Phase 03-overlay-system]: autostart: getattr(sys, 'frozen', False) для auto-detect PyInstaller frozen exe без AttributeError
+- [Phase 03-overlay-system]: Mode 'silent' и 'pulse_only' оба блокируют send_toast → returns False (NOTIF-01/04)
+- [Phase 03-overlay-system]: winotify импортируется лениво внутри _do_show_toast — graceful degradation если не установлен
+- [Phase 03-overlay-system]: Dedup через set((task_id, kind)) — позволяет получить оба уведомления (approaching/overdue) для одной задачи
 
 ### Pending Todos
 
@@ -145,6 +149,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T08:15:54.143Z
-Stopped at: Completed 03-overlay-system-09-PLAN.md
+Last session: 2026-04-16T08:17:24.870Z
+Stopped at: Completed 03-overlay-system-08-PLAN.md
 Resume file: None

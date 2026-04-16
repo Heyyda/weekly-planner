@@ -72,10 +72,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Notifications (NOTIF)
 
-- [ ] **NOTIF-01**: Настраиваемый режим уведомлений: "пульсация кружка" / "пульсация + Windows toast" / "тихо"
-- [ ] **NOTIF-02**: Toast через Windows 10/11 toast-нотификации (plyer или win10toast_click)
-- [ ] **NOTIF-03**: Уведомления приходят при наступлении времени/дедлайна задачи (done=false)
-- [ ] **NOTIF-04**: Режим "Не беспокоить" полностью блокирует toast (пульсация остаётся как пассивный сигнал)
+- [x] **NOTIF-01**: Настраиваемый режим уведомлений: "пульсация кружка" / "пульсация + Windows toast" / "тихо"
+- [x] **NOTIF-02**: Toast через Windows 10/11 toast-нотификации (plyer или win10toast_click)
+- [x] **NOTIF-03**: Уведомления приходят при наступлении времени/дедлайна задачи (done=false)
+- [x] **NOTIF-04**: Режим "Не беспокоить" полностью блокирует toast (пульсация остаётся как пассивный сигнал)
 
 ### Telegram Bot (BOT)
 
@@ -187,10 +187,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TRAY-02 | Phase 3 | Pending |
 | TRAY-03 | Phase 3 | Pending |
 | TRAY-04 | Phase 3 | Pending |
-| NOTIF-01 | Phase 3 | Pending |
-| NOTIF-02 | Phase 3 | Pending |
-| NOTIF-03 | Phase 3 | Pending |
-| NOTIF-04 | Phase 3 | Pending |
+| NOTIF-01 | Phase 3 | Complete |
+| NOTIF-02 | Phase 3 | Complete |
+| NOTIF-03 | Phase 3 | Complete |
+| NOTIF-04 | Phase 3 | Complete |
 | WEEK-01 | Phase 4 | Pending |
 | WEEK-02 | Phase 4 | Pending |
 | WEEK-03 | Phase 4 | Pending |
