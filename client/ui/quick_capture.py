@@ -16,7 +16,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
-from client.ui.parse_input import parse_quick_input
+from shared.parse_input import parse_quick_input
 from client.ui.themes import ThemeManager
 
 logger = logging.getLogger(__name__)

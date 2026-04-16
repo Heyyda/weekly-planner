@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from client.ui.parse_input import (
+from shared.parse_input import (
     parse_quick_input,
     format_date_range_ru,
     _WEEKDAY_MAP,

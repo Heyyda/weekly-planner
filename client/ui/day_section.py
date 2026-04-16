@@ -12,7 +12,7 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from client.core.models import Task
-from client.ui.parse_input import parse_quick_input
+from shared.parse_input import parse_quick_input
 from client.ui.task_widget import TaskWidget
 from client.ui.themes import FONTS, ThemeManager
 

@@ -12,7 +12,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
-from client.ui.parse_input import format_date_range_ru
+from shared.parse_input import format_date_range_ru
 from client.ui.themes import FONTS, ThemeManager
 
 logger = logging.getLogger(__name__)

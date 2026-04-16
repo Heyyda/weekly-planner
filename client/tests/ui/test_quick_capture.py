@@ -165,7 +165,7 @@ def test_pitfall_3_focus_check_delay():
 def test_parse_input_integrated():
     import client.ui.quick_capture as qc_module
     source = inspect.getsource(qc_module)
-    assert "from client.ui.parse_input import parse_quick_input" in source
+    assert "from shared.parse_input import parse_quick_input" in source
 
 
 # ---------- Focus-loss dismiss ----------
