@@ -207,7 +207,13 @@ Plans:
   - Автообновление: файл-блокировка на Windows — rename trick, не прямая замена `.exe` — см. PITFALLS.md Pitfall 6
   - Проверить на чистой Windows VM (не dev-машине) перед финальным релизом
 
-**Plans**: TBD
+**Plans:** code-complete (compact one-session execution)
+- [x] `planner.spec` — PyInstaller onefile/windowed + collect_data_files(customtkinter) + hiddenimports keyring.backends.Windows, pystray._win32, PIL._tkinter_finder
+- [x] `client/assets/icon.ico` — Things 3-style rounded-square + white check
+- [x] `build/build.bat` — обновлён под .spec
+- [x] Integration: `app.py._check_for_updates` schedule через `root.after(30_000)` (non-blocking)
+- [x] Smoke-test: .exe 22 MB запускается с Cyrillic path (DIST-05/06)
+- [ ] Human-verify на чистой Windows VM (без Python installed) — **follow-up**
 
 ---
 
@@ -220,7 +226,7 @@ Plans:
 | 3. Оверлей и системная интеграция | 11/11 | Complete    | 2026-04-16 |
 | 4. Недельный вид и задачи | 11/11 | Code-complete (human-verify pending) | 2026-04-16 |
 | 5. Telegram-бот | done | Code-complete (BOT-03/04/05 tests green) | 2026-04-16 |
-| 6. Дистрибуция и автообновление | 0/? | Not started | - |
+| 6. Дистрибуция и автообновление | done | Code-complete (.exe built + smoke-test + updater check wired) | 2026-04-16 |
 
 ---
 

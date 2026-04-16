@@ -88,12 +88,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Distribution + Autostart (DIST)
 
-- [ ] **DIST-01**: Сборка в один установочный артефакт (`.exe` или одна папка) через PyInstaller
-- [ ] **DIST-02**: `.spec` файл с `collect_data_files('customtkinter')` и `--noupx` для минимизации AV false-positives
-- [ ] **DIST-03**: keyring Windows backend явно импортируется для работы в frozen exe
-- [ ] **DIST-04**: Опциональный автозапуск Windows (tray-тоггл, регистрация в реестре `HKCU\...\Run`)
-- [ ] **DIST-05**: Auto-update: при старте проверяется новая версия на сервере, скачивается, SHA256 verify, `.bat`-trick для замены .exe (паттерн из E-bot)
-- [ ] **DIST-06**: Установщик работает из пути с кириллицей (`s:\Проекты\...`) — тест на реальной машине владельца
+- [x] **DIST-01**: Сборка в один установочный артефакт (`.exe` или одна папка) через PyInstaller
+- [x] **DIST-02**: `.spec` файл с `collect_data_files('customtkinter')` и `--noupx` для минимизации AV false-positives
+- [x] **DIST-03**: keyring Windows backend явно импортируется для работы в frozen exe
+- [x] **DIST-04**: Опциональный автозапуск Windows (tray-тоггл, регистрация в реестре `HKCU\...\Run`) — autostart.py + tray toggle готовы с Phase 3
+- [x] **DIST-05**: Auto-update: UpdateManager + /api/version + _check_for_updates schedule готовы; UI баннер — follow-up
+- [x] **DIST-06**: Smoke-test прошёл из `s:\Проекты\ежедневник\` (Cyrillic path) — требуется финальная human-verify с чистой Windows
 
 ## v2 Requirements
 
