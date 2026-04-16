@@ -72,7 +72,7 @@ Plans:
 **Plans:** 8 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Wave 0: pytest-инфраструктура (conftest, pyproject, requirements-dev, fixtures tmp_appdata + mock_api)
+- [x] 02-01-PLAN.md — Wave 0: pytest-инфраструктура (conftest, pyproject, requirements-dev, fixtures tmp_appdata + mock_api)
 - [ ] 02-02-PLAN.md — Wave 1: client/core/models.py (Task + TaskChange + utcnow_iso) + paths.py + config.py — SYNC-06
 - [ ] 02-03-PLAN.md — Wave 1: logging_setup с RotatingFileHandler + SecretFilter (D-27, D-29)
 - [ ] 02-04-PLAN.md — Wave 2: AuthManager rewrite (правильные endpoints, keyring rotation, threading.Lock)

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 2 context gathered (auto)
-last_updated: "2026-04-15T21:11:10.315Z"
+stopped_at: Completed 02-01-PLAN.md (Wave 0 тестовая инфраструктура)
+last_updated: "2026-04-16T03:49:00.285Z"
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 19
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Быстро записать задачу "в моменте" и не забыть её — даже между двумя PC и телефоном. Speed-of-capture — единственная метрика, которая имеет значение.
-**Current focus:** Phase 01 — server-auth
+**Current focus:** Phase 02 — client-core
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
+Phase: 02 (client-core) — EXECUTING
+Plan: 2 of 8
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Plan: Not started
 | Phase 01-server-auth P09 | 141 | 2 tasks | 3 files |
 | Phase 01-server-auth P07 | 35 | 3 tasks | 4 files |
 | Phase 01-server-auth P08 | 30 | 3 tasks | 6 files |
+| Phase 02-client-core P01 | 2 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 01-server-auth]: Idempotent CREATE в sync: повторный task_id трактуется как UPDATE, не ошибка — клиент может не знать дошёл ли первый CREATE
 - [Phase 01-server-auth]: Rate-limit по IP (не username): slowapi key_func синхронный, не может читать async body() — RuntimeError: body read twice (RESEARCH.md Pitfall 6)
 - [Phase 01-server-auth]: limiter.reset() в каждом тестовом fixture который вызывает /request-code — slowapi limiter глобальный синглтон, без reset состояние между тестами ломает 429-логику
+- [Phase 02-client-core]: client/pyproject.toml отдельный от server/pyproject.toml — клиент синхронный, asyncio_mode не нужен
+- [Phase 02-client-core]: requests-mock выбран для client-тестов — thread-safe (важно для SYNC-04 concurrent write тестов)
+- [Phase 02-client-core]: tmp_appdata fixture подменяет и APPDATA и LOCALAPPDATA — покрывает fallback D-02
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T21:11:10.312Z
-Stopped at: Phase 2 context gathered (auto)
-Resume file: .planning/phases/02-client-core/02-CONTEXT.md
+Last session: 2026-04-16T03:49:00.282Z
+Stopped at: Completed 02-01-PLAN.md (Wave 0 тестовая инфраструктура)
+Resume file: None
