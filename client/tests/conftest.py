@@ -199,3 +199,82 @@ def mock_ctypes_dpi(monkeypatch):
     except (AttributeError, OSError):
         pass  # не-Windows — пропускаем
     yield
+
+
+# ---------- Phase 4 UI fixtures ----------
+
+@pytest.fixture
+def timestamped_task_factory():
+    """Фабрика Task с настраиваемыми day/time/done для UI-тестов Phase 4.
+
+    Usage:
+        task = timestamped_task_factory(text="hello", day_offset=-1)  # вчера
+        overdue = timestamped_task_factory(day_offset=-2, done=False)
+        future = timestamped_task_factory(day_offset=3, time="14:30")
+    """
+    from datetime import date, timedelta
+    from client.core.models import Task
+
+    def factory(
+        text: str = "Test task",
+        day_offset: int = 0,
+        time: str | None = None,
+        done: bool = False,
+        user_id: str = "test-user",
+        position: int = 0,
+    ) -> Task:
+        target_date = (date.today() + timedelta(days=day_offset)).isoformat()
+        task = Task.new(
+            user_id=user_id,
+            text=text,
+            day=target_date,
+            time_deadline=time,
+            position=position,
+        )
+        task.done = done
+        return task
+
+    return factory
+
+
+@pytest.fixture
+def mock_storage(tmp_appdata):
+    """LocalStorage готовый к использованию (инициализированный на tmp_appdata).
+
+    Phase 4 UI-тесты используют этот fixture вместо ручного создания AppPaths+LocalStorage.
+    get_visible_tasks() вернёт [] для свежего storage.
+    """
+    from client.core.paths import AppPaths
+    from client.core.storage import LocalStorage
+    storage = LocalStorage(AppPaths())
+    storage.init()
+    return storage
+
+
+@pytest.fixture
+def mock_theme_manager():
+    """ThemeManager('light') без субскриберов — для widget-тестов Phase 4."""
+    from client.ui.themes import ThemeManager
+    return ThemeManager(initial="light")
+
+
+@pytest.fixture
+def dnd_event_simulator():
+    """Фабрика MagicMock-событий для DnD unit-тестов.
+
+    Симулирует tk.Event с нужными атрибутами x_root, y_root, x, y, widget.
+    Используется в test_drag_controller.py вместо реальных event_generate().
+    """
+    from unittest.mock import MagicMock
+
+    def simulate(x_root: int = 0, y_root: int = 0,
+                 x: int = 0, y: int = 0, widget=None) -> MagicMock:
+        event = MagicMock()
+        event.x_root = x_root
+        event.y_root = y_root
+        event.x = x
+        event.y = y
+        event.widget = widget
+        return event
+
+    return simulate
