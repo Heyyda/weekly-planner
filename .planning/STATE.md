@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-overlay-system-05-PLAN.md
-last_updated: "2026-04-16T07:05:55.203Z"
+stopped_at: Completed 03-overlay-system-09-PLAN.md
+last_updated: "2026-04-16T08:15:54.148Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 30
-  completed_plans: 24
+  completed_plans: 27
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 03 (overlay-system) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Plan: 6 of 11
 | Phase 03-overlay-system P03 | 4m | 1 tasks | 2 files |
 | Phase 03-overlay-system P04 | 3 | 1 tasks | 2 files |
 | Phase 03-overlay-system P05 | 5 | 1 tasks | 3 files |
+| Phase 03-overlay-system P09 | 2 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,8 @@ Recent decisions affecting current work:
 - [Phase 03-overlay-system]: PITFALL 1/4/6 встроены в OverlayManager с grep-verifiable markers (INIT_DELAY_MS=100, self._tk_image, _validate_position)
 - [Phase 03-overlay-system]: headless_tk scope=session — Tcl нельзя пересоздать в одной pytest-сессии
 - [Phase 03-overlay-system]: PulseAnimator отдельный модуль (SRP), интегрируется в Plan 03-10 через on_frame callback
+- [Phase 03-overlay-system]: autostart: ASCII value name LichnyEzhednevnik вместо кириллицы — frozen-exe safety в HKCU\...\Run
+- [Phase 03-overlay-system]: autostart: getattr(sys, 'frozen', False) для auto-detect PyInstaller frozen exe без AttributeError
 
 ### Pending Todos
 
@@ -142,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T07:05:55.199Z
-Stopped at: Completed 03-overlay-system-05-PLAN.md
+Last session: 2026-04-16T08:15:54.143Z
+Stopped at: Completed 03-overlay-system-09-PLAN.md
 Resume file: None
