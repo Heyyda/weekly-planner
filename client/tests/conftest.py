@@ -50,10 +50,14 @@ def mock_api():
 
 # ---------- Phase 3 UI fixtures ----------
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def headless_tk():
     """
-    CTk root в headless-режиме для UI-тестов.
+    CTk root в headless-режиме для UI-тестов (session-scoped).
+
+    Session scope необходим: Tcl/Tk интерпретатор нельзя корректно
+    пересоздать внутри одной pytest-сессии после destroy(). Один root
+    на всю сессию — стандартный паттерн для Tkinter unit-тестов.
     withdraw() — окно невидимо, update() процессирует events без mainloop().
     """
     import customtkinter as ctk
