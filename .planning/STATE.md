@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "Completed 02-02-PLAN.md (Wave 1: models + paths + config)"
-last_updated: "2026-04-16T03:53:55.156Z"
+stopped_at: Completed 02-client-core plan 04 (AuthManager rewrite)
+last_updated: "2026-04-16T03:57:56.287Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 02 (client-core) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Plan: 4 of 8
 | Phase 02-client-core P01 | 2 | 2 tasks | 5 files |
 | Phase 02-client-core P03 | 2 | 1 tasks | 2 files |
 | Phase 02-client-core P02 | 3 | 2 tasks | 6 files |
+| Phase 02-client-core P04 | 116 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Recent decisions affecting current work:
 - [Phase 02-client-core]: KEYRING_SERVICE=WeeklyPlanner (ASCII) — избегаем frozen exe проблему с Cyrillic (D-25, Pitfall 4)
 - [Phase 02-client-core]: Task timestamps хранятся как str (ISO 8601 с Z) — минимум conversion при JSON сериализации; lexicographic compare работает если формат единый
 - [Phase 02-client-core]: AppPaths — lightweight не-singleton; создаётся по необходимости, легко тестируется через monkeypatch env vars
+- [Phase 02-client-core]: access_token только в RAM — keyring хранит только refresh_token (D-26 подтверждён тестами)
+- [Phase 02-client-core]: AuthExpiredError из refresh_access перехватывается load_saved_token — возвращает False (не пробрасывается)
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T03:53:55.153Z
-Stopped at: Completed 02-02-PLAN.md (Wave 1: models + paths + config)
+Last session: 2026-04-16T03:57:56.284Z
+Stopped at: Completed 02-client-core plan 04 (AuthManager rewrite)
 Resume file: None
