@@ -38,8 +38,8 @@ def create_dispatcher() -> Dispatcher:
     Вынесено отдельно чтобы тесты могли вызвать create_dispatcher()
     без запуска long-polling.
 
-    Фаза 1: только /start handler.
-    Фаза 5: добавятся router'ы для задач (/add, /week, /today).
+    Фаза 1: /start handler для auth chat_id.
+    Фаза 5: /add, /today, /week + inline-callback handlers.
     """
     dp = Dispatcher()
     from server.bot.handlers import router as start_router
@@ -70,7 +70,7 @@ async def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     logger = logging.getLogger("server.bot")
-    logger.info("Запуск Telegram-бота (Фаза 1: только /start handler)")
+    logger.info("Запуск Telegram-бота (Фаза 5: /start, /add, /today, /week)")
 
     bot = create_bot()
     dp = create_dispatcher()
