@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-01-PLAN.md (Wave 0 тестовая инфраструктура)
-last_updated: "2026-04-16T03:49:00.285Z"
+stopped_at: Completed 02-client-core 02-03-PLAN.md
+last_updated: "2026-04-16T03:53:35.813Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 19
-  completed_plans: 12
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 02 (client-core) — EXECUTING
-Plan: 2 of 8
+Plan: 4 of 8
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Plan: 2 of 8
 | Phase 01-server-auth P07 | 35 | 3 tasks | 4 files |
 | Phase 01-server-auth P08 | 30 | 3 tasks | 6 files |
 | Phase 02-client-core P01 | 2 | 2 tasks | 5 files |
+| Phase 02-client-core P03 | 2 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Recent decisions affecting current work:
 - [Phase 02-client-core]: client/pyproject.toml отдельный от server/pyproject.toml — клиент синхронный, asyncio_mode не нужен
 - [Phase 02-client-core]: requests-mock выбран для client-тестов — thread-safe (важно для SYNC-04 concurrent write тестов)
 - [Phase 02-client-core]: tmp_appdata fixture подменяет и APPDATA и LOCALAPPDATA — покрывает fallback D-02
+- [Phase 02-client-core]: SecretFilter на root logger — наследуется всеми child-логгерами без дополнительной конфигурации (D-29)
+- [Phase 02-client-core]: Идемпотентность setup_client_logging через маркер на root logger object — без глобальных переменных модуля
 
 ### Pending Todos
 
@@ -103,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T03:49:00.282Z
-Stopped at: Completed 02-01-PLAN.md (Wave 0 тестовая инфраструктура)
+Last session: 2026-04-16T03:53:27.634Z
+Stopped at: Completed 02-client-core 02-03-PLAN.md
 Resume file: None
