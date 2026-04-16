@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-overlay-system 03-03-PLAN.md (icon_compose.py)
-last_updated: "2026-04-16T06:58:46.873Z"
+stopped_at: Completed 03-04-PLAN.md (OverlayManager)
+last_updated: "2026-04-16T07:03:44.039Z"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 30
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Phase: 03 (overlay-system) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Plan: 4 of 11
 | Phase 03-overlay-system P01 | 2 | 1 tasks | 2 files |
 | Phase 03-overlay-system P02 | 3 | 2 tasks | 4 files |
 | Phase 03-overlay-system P03 | 4m | 1 tasks | 2 files |
+| Phase 03-overlay-system P04 | 3 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,8 @@ Recent decisions affecting current work:
 - [Phase 03-overlay-system]: SettingsStore — тонкая обёртка без новой I/O (D-25); UISettings.overlay_position как list[int] для JSON round-trip
 - [Phase 03-overlay-system]: Badge тест-координаты (44,4) вместо центра (48,8) — текст badge перекрывает центр ellipse
 - [Phase 03-overlay-system]: pulse_t > 1.0 нормализуется как периодичность t=t-int(t), позволяет монотонный счётчик в PulseAnimator
+- [Phase 03-overlay-system]: D-19 enforced: pure ctypes EnumDisplayMonitors без pywin32 — нет optional dependency
+- [Phase 03-overlay-system]: PITFALL 1/4/6 встроены в OverlayManager с grep-verifiable markers (INIT_DELAY_MS=100, self._tk_image, _validate_position)
 
 ### Pending Todos
 
@@ -136,6 +139,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T06:58:46.869Z
-Stopped at: Completed 03-overlay-system 03-03-PLAN.md (icon_compose.py)
+Last session: 2026-04-16T07:03:44.035Z
+Stopped at: Completed 03-04-PLAN.md (OverlayManager)
 Resume file: None
