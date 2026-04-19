@@ -1,43 +1,58 @@
 """
 Health + Version endpoints.
 
-Health — для systemd liveness check и reverse-proxy healthcheck.
-Version — для авто-обновления клиента (Фаза 6) — возвращает текущую версию
-и SHA256 файла для проверки интегрии после скачивания.
-
-Оба endpoint — БЕЗ auth (public), но они находятся под /api/ префиксом.
+Health — liveness check для systemd и reverse-proxy.
+Version — для авто-обновления клиента (DIST-04/05). Читает манифест
+`/opt/planner/releases/latest.json` — обновляется деплой-скриптом без
+пересборки сервера.
 """
 from __future__ import annotations
+
+import json
+import logging
+import os
+from pathlib import Path
 
 from fastapi import APIRouter
 
 from server.config import get_settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["misc"])
+
+
+_DEFAULT_MANIFEST_PATH = "/opt/planner/releases/latest.json"
+
+
+def _read_manifest() -> dict:
+    """Читать manifest JSON. Если нет или сломан — fallback к дефолту из config."""
+    path = os.environ.get("PLANNER_RELEASE_MANIFEST", _DEFAULT_MANIFEST_PATH)
+    try:
+        with Path(path).open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            "version": str(data.get("version", "")),
+            "download_url": str(data.get("download_url", "")),
+            "sha256": str(data.get("sha256", "")),
+        }
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        logger.debug("release manifest fallback: %s", exc)
+        return {}
 
 
 @router.get("/health")
 async def health():
-    """
-    Liveness check. Используется systemd WatchdogSec/ExecStartPost и Caddy/nginx healthchecks.
-
-    Return 200 всегда — если процесс живой, health OK. Для readiness (DB доступна)
-    можно добавить ping БД, но для Фазы 1 избыточно.
-    """
     return {"status": "ok"}
 
 
 @router.get("/version")
 async def version():
-    """
-    Версия сервера и download URL для авто-обновления клиента (Фаза 6 — DIST-05).
-
-    sha256 пока пустая — заполнится при билд-процессе клиента, когда появится
-    реальный .exe артефакт для публикации.
-    """
+    """Версия последнего .exe релиза для автообновления клиента."""
     settings = get_settings()
+    manifest = _read_manifest()
     return {
-        "version": settings.app_version,
-        "download_url": "https://heyda.ru/planner/download",
-        "sha256": "",
+        "version": manifest.get("version") or settings.app_version,
+        "download_url": manifest.get("download_url") or "",
+        "sha256": manifest.get("sha256") or "",
     }
