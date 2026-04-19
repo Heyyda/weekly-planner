@@ -158,15 +158,30 @@ class DragController:
         task_text: str,
         source_zone: DropZone,
     ) -> None:
-        """D-22: bindings ТОЛЬКО на task body."""
+        """D-22: bindings на task body + все children (CTkLabel перехватывает события)."""
         def on_press(event, tid=task_id, txt=task_text, sz=source_zone,
                      widget=task_body_frame):
             self._on_press(event, tid, txt, sz, widget)
 
+        def _bind_recursive(w) -> None:
+            try:
+                w.bind("<ButtonPress-1>", on_press, add="+")
+                w.bind("<B1-Motion>", self._on_motion, add="+")
+                w.bind("<ButtonRelease-1>", self._on_release, add="+")
+            except tk.TclError:
+                pass
+            try:
+                for child in w.winfo_children():
+                    # НЕ биндим на icons frame (edit/delete должны работать как клики)
+                    name = str(child).lower()
+                    if "icon" in name or "button" in name:
+                        continue
+                    _bind_recursive(child)
+            except tk.TclError:
+                pass
+
         try:
-            task_body_frame.bind("<ButtonPress-1>", on_press, add="+")
-            task_body_frame.bind("<B1-Motion>", self._on_motion, add="+")
-            task_body_frame.bind("<ButtonRelease-1>", self._on_release, add="+")
+            _bind_recursive(task_body_frame)
         except tk.TclError as exc:
             logger.debug("bind_task: %s", exc)
 

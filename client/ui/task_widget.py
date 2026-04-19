@@ -1,12 +1,11 @@
-"""TaskWidget — виджет одной задачи. Phase 4.
+"""TaskWidget — виджет одной задачи. v0.4.0 redesign.
 
-3 стиля рендеринга (D-07/08/09), custom Canvas checkbox (D-11),
-hover icons (D-13), theme-aware через ThemeManager.subscribe.
-
-Покрывает:
-  WEEK-04: overdue visual (accent_overdue border)
-  WEEK-05: 3 стиля через style param
-  TASK-02: on_toggle callback при checkbox click
+Улучшения:
+- Checkbox 22×22 с плавной галочкой (smooth=True)
+- Иконки-символы (✎ pencil, 🗑 trash) всегда видны, dim при отсутствии hover
+- Компактный padding (5-6 px)
+- Rounded corners r=10
+- Overdue state: ярко-красный checkbox border + текст
 """
 from __future__ import annotations
 
@@ -26,14 +25,12 @@ VALID_STYLES = {"card", "line", "minimal"}
 
 
 class TaskWidget:
-    """Виджет одной задачи. См. 04-UI-SPEC §Task Block."""
+    CHECKBOX_SIZE = 22
+    CHECKBOX_RADIUS = 4
+    ICON_PAD = 4
+    CORNER_RADIUS = 10
 
-    CHECKBOX_SIZE = 18        # D-11
-    CHECKBOX_RADIUS = 3       # D-11
-    ICON_SIZE = 14            # D-13
-
-    _PADDING = {"card": (12, 10), "line": (10, 8), "minimal": (6, 6)}
-    _CORNER_RADIUS = {"card": 8, "line": 0, "minimal": 6}
+    _PADDING = {"card": (10, 7), "line": (8, 5), "minimal": (6, 4)}
 
     def __init__(
         self,
@@ -46,7 +43,6 @@ class TaskWidget:
         on_delete: Callable[[str], None],
     ) -> None:
         if style not in VALID_STYLES:
-            logger.warning("Неизвестный style=%r — fallback 'card'", style)
             style = "card"
 
         self._task = task
@@ -64,11 +60,12 @@ class TaskWidget:
         self._edit_btn: Optional[ctk.CTkLabel] = None
         self._del_btn: Optional[ctk.CTkLabel] = None
         self._body_frame: Optional[ctk.CTkFrame] = None
+        self._row: Optional[ctk.CTkFrame] = None
 
-        fg = self._theme.get("bg_secondary") if style == "card" else "transparent"
+        fg = self._bg_color()
         self.frame = ctk.CTkFrame(
             parent,
-            corner_radius=self._CORNER_RADIUS[style],
+            corner_radius=self.CORNER_RADIUS if style != "line" else 0,
             fg_color=fg,
         )
 
@@ -79,16 +76,19 @@ class TaskWidget:
         self.frame.pack(**kwargs)
 
     def get_body_frame(self) -> ctk.CTkFrame:
-        """Frame тела задачи — target для DnD bindings (Plan 04-09, D-22)."""
+        """Frame тела задачи — target для DnD bindings."""
         return self._body_frame
 
     def update_task(self, task: Task) -> None:
-        """Partial update без пересоздания виджетов (PITFALL 4 — scroll preserved)."""
         self._task = task
         if self._text_label is not None and self._text_label.winfo_exists():
-            self._text_label.configure(text=task.text)
+            try:
+                self._text_label.configure(text=task.text)
+            except tk.TclError:
+                pass
         self._render_checkbox()
         self._update_time_label()
+        self._update_text_decoration()
 
     def destroy(self) -> None:
         self._destroyed = True
@@ -97,24 +97,33 @@ class TaskWidget:
         except Exception as exc:
             logger.debug("TaskWidget destroy: %s", exc)
 
+    # ---- Build ----
+
+    def _bg_color(self) -> str:
+        if self._style == "card":
+            return self._theme.get("bg_secondary")
+        return "transparent"
+
     def _build(self) -> None:
         padx, pady = self._PADDING[self._style]
-        row = ctk.CTkFrame(self.frame, fg_color="transparent")
-        row.pack(fill="x", padx=padx, pady=pady)
+        self._row = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self._row.pack(fill="x", padx=padx, pady=pady)
 
+        # Checkbox — custom tk.Canvas (плавная галочка)
         self._cb_canvas = tk.Canvas(
-            row,
+            self._row,
             width=self.CHECKBOX_SIZE,
             height=self.CHECKBOX_SIZE,
             highlightthickness=0,
             borderwidth=0,
             cursor="hand2",
-            bg=self._theme.get("bg_secondary" if self._style == "card" else "bg_primary"),
+            bg=self._bg_color() if self._bg_color() != "transparent" else self._theme.get("bg_primary"),
         )
-        self._cb_canvas.pack(side="left", padx=(0, 8))
+        self._cb_canvas.pack(side="left", padx=(0, 10))
         self._cb_canvas.bind("<Button-1>", self._on_checkbox_click)
 
-        self._body_frame = ctk.CTkFrame(row, fg_color="transparent", cursor="fleur")
+        # Body frame — holds text + time; used as DnD target
+        self._body_frame = ctk.CTkFrame(self._row, fg_color="transparent", cursor="fleur")
         self._body_frame.pack(side="left", fill="x", expand=True)
 
         self._text_label = ctk.CTkLabel(
@@ -124,32 +133,44 @@ class TaskWidget:
             justify="left",
             wraplength=0,
             font=FONTS["body"],
+            text_color=self._theme.get("text_primary"),
         )
         self._text_label.pack(side="left", fill="x", expand=True)
 
-        if self._task.time_deadline:
-            hhmm = self._extract_hhmm(self._task.time_deadline)
-            self._time_label = ctk.CTkLabel(self._body_frame, text=hhmm, font=FONTS["mono"])
-            self._time_label.pack(side="left", padx=(4, 0))
+        # Time label (всегда создаём — показываем/прячем по наличию time_deadline)
+        self._time_label = ctk.CTkLabel(
+            self._body_frame, text="", font=FONTS["mono"],
+            text_color=self._theme.get("text_secondary"),
+        )
+        self._time_label.pack(side="left", padx=(6, 0))
+        # visibility toggled in _update_time_label
 
-        icons_frame = ctk.CTkFrame(row, fg_color="transparent")
-        icons_frame.pack(side="right", padx=(4, 0))
+        # Icons frame — right side
+        icons_frame = ctk.CTkFrame(self._row, fg_color="transparent")
+        icons_frame.pack(side="right", padx=(6, 0))
 
         self._edit_btn = ctk.CTkLabel(
-            icons_frame, text="✏", width=self.ICON_SIZE + 6, cursor="hand2",
-            font=FONTS["caption"],
+            icons_frame, text="✎", width=18, cursor="hand2",
+            font=(FONTS["body"][0], 16, "normal"),
+            text_color=self._theme.get("text_tertiary"),
         )
-        self._edit_btn.pack(side="left")
+        self._edit_btn.pack(side="left", padx=(0, self.ICON_PAD))
         self._edit_btn.bind("<Button-1>", lambda e: self._on_edit(self._task.id))
+        self._edit_btn.bind("<Enter>", lambda e: self._icon_hover(self._edit_btn, True))
+        self._edit_btn.bind("<Leave>", lambda e: self._icon_hover(self._edit_btn, False))
 
         self._del_btn = ctk.CTkLabel(
-            icons_frame, text="🗑", width=self.ICON_SIZE + 6, cursor="hand2",
-            font=FONTS["caption"],
+            icons_frame, text="🗑", width=18, cursor="hand2",
+            font=(FONTS["body"][0], 14, "normal"),
+            text_color=self._theme.get("text_tertiary"),
         )
         self._del_btn.pack(side="left")
         self._del_btn.bind("<Button-1>", lambda e: self._on_delete(self._task.id))
+        self._del_btn.bind("<Enter>", lambda e: self._icon_hover(self._del_btn, True))
+        self._del_btn.bind("<Leave>", lambda e: self._icon_hover(self._del_btn, False))
 
-        for w in (self.frame, row, self._body_frame, self._text_label):
+        # Hover on row — раскрашиваем иконки (они ВСЕГДА видны, но темнее когда no hover)
+        for w in (self.frame, self._row, self._body_frame, self._text_label, self._time_label):
             try:
                 w.bind("<Enter>", self._on_hover_enter, add="+")
                 w.bind("<Leave>", self._on_hover_leave, add="+")
@@ -158,7 +179,9 @@ class TaskWidget:
 
         self._render_checkbox()
         self._update_time_label()
-        self._set_icons_visible(False)
+        self._update_text_decoration()
+
+    # ---- Checkbox ----
 
     def _render_checkbox(self) -> None:
         c = self._cb_canvas
@@ -166,29 +189,55 @@ class TaskWidget:
             return
         c.delete("all")
         s = self.CHECKBOX_SIZE
-        r = self.CHECKBOX_RADIUS
+        pad = 2
 
         if self._task.done:
             fill = self._theme.get("accent_done")
-            c.create_rectangle(r, r, s - r, s - r, fill=fill, outline="", tags="box")
-            pts = [s * 0.22, s * 0.55, s * 0.43, s * 0.73, s * 0.78, s * 0.28]
-            c.create_line(pts, fill="white", width=2, smooth=False, tags="check")
+            # Rounded fill via oval+rect approximation
+            c.create_rectangle(pad, pad, s - pad, s - pad, fill=fill, outline="", width=0)
+            # Smooth checkmark
+            pts = [s * 0.25, s * 0.52, s * 0.42, s * 0.70, s * 0.75, s * 0.32]
+            c.create_line(pts, fill="white", width=2, smooth=True, capstyle="round")
         elif self._task.is_overdue():
             border = self._theme.get("accent_overdue")
-            c.create_rectangle(r, r, s - r, s - r, fill="", outline=border, width=2, tags="box")
+            c.create_rectangle(pad, pad, s - pad, s - pad, fill="", outline=border, width=2)
         else:
-            border = self._theme.get("text_secondary")
-            c.create_rectangle(r, r, s - r, s - r, fill="", outline=border, width=1, tags="box")
+            border = self._theme.get("text_tertiary")
+            c.create_rectangle(pad, pad, s - pad, s - pad, fill="", outline=border, width=1)
+
+    def _on_checkbox_click(self, event=None) -> None:
+        """Optimistic UI: toggle локально + callback → storage."""
+        if self._destroyed:
+            return
+        new_done = not self._task.done
+        self._task.done = new_done
+        self._render_checkbox()
+        self._update_text_decoration()
+        self._update_time_label()
+        try:
+            self._on_toggle(self._task.id, new_done)
+        except Exception as exc:
+            logger.error("on_toggle: %s", exc)
+
+    # ---- Time label ----
 
     def _update_time_label(self) -> None:
         if self._time_label is None or not self._time_label.winfo_exists():
             return
-        if self._task.time_deadline:
+        if not self._task.time_deadline:
+            try:
+                self._time_label.pack_forget()
+            except tk.TclError:
+                pass
+            return
+        try:
             self._time_label.configure(text=self._extract_hhmm(self._task.time_deadline))
-
+            self._time_label.pack(side="left", padx=(6, 0))
+        except tk.TclError:
+            pass
         if self._task.done:
             color = self._theme.get("text_tertiary")
-        elif self._task.is_overdue() or self._is_time_overdue():
+        elif self._task.is_overdue():
             color = self._theme.get("accent_overdue")
         else:
             color = self._theme.get("text_secondary")
@@ -197,24 +246,89 @@ class TaskWidget:
         except tk.TclError:
             pass
 
-    def _is_time_overdue(self) -> bool:
-        if not self._task.time_deadline or self._task.done:
-            return False
+    def _update_text_decoration(self) -> None:
+        """Strikethrough для выполненных + dim цвет."""
+        if self._text_label is None or not self._text_label.winfo_exists():
+            return
+        family, size, _weight = FONTS["body"]
+        if self._task.done:
+            try:
+                self._text_label.configure(
+                    font=(family, size, "overstrike"),
+                    text_color=self._theme.get("text_tertiary"),
+                )
+            except tk.TclError:
+                pass
+        else:
+            color = self._theme.get("accent_overdue") if self._task.is_overdue() else self._theme.get("text_primary")
+            try:
+                self._text_label.configure(
+                    font=FONTS["body"],
+                    text_color=color,
+                )
+            except tk.TclError:
+                pass
+
+    # ---- Hover ----
+
+    def _on_hover_enter(self, event=None) -> None:
+        if self._destroyed or self._hover:
+            return
+        self._hover = True
+        self._refresh_icon_visibility()
+
+    def _on_hover_leave(self, event=None) -> None:
+        if self._destroyed:
+            return
+        # Debounce: check actual cursor position to avoid flicker when mouse enters child
         try:
-            if "T" in self._task.time_deadline:
+            mx = self.frame.winfo_pointerx()
+            my = self.frame.winfo_pointery()
+            fx = self.frame.winfo_rootx()
+            fy = self.frame.winfo_rooty()
+            fw = self.frame.winfo_width()
+            fh = self.frame.winfo_height()
+            if fx <= mx <= fx + fw and fy <= my <= fy + fh:
+                return  # ещё внутри frame
+        except tk.TclError:
+            pass
+        self._hover = False
+        self._refresh_icon_visibility()
+
+    def _refresh_icon_visibility(self) -> None:
+        color = self._theme.get("text_secondary") if self._hover else self._theme.get("text_tertiary")
+        for btn in (self._edit_btn, self._del_btn):
+            if btn is not None and btn.winfo_exists():
                 try:
-                    dl = datetime.fromisoformat(
-                        self._task.time_deadline.replace("Z", "+00:00"))
-                    return dl < datetime.now(dl.tzinfo or None)
-                except (ValueError, TypeError):
-                    return False
-            if self._task.day != date.today().isoformat():
-                return False
-            hhmm = self._task.time_deadline[:5]
-            now_hm = datetime.now().strftime("%H:%M")
-            return hhmm < now_hm
-        except Exception:
-            return False
+                    btn.configure(text_color=color)
+                except tk.TclError:
+                    pass
+
+    def _icon_hover(self, btn: ctk.CTkLabel, entering: bool) -> None:
+        if btn is None or not btn.winfo_exists():
+            return
+        try:
+            color = self._theme.get("accent_brand") if entering else (
+                self._theme.get("text_secondary") if self._hover else self._theme.get("text_tertiary")
+            )
+            btn.configure(text_color=color)
+        except tk.TclError:
+            pass
+
+    # ---- Theme ----
+
+    def _apply_theme(self, palette: dict) -> None:
+        if self._destroyed:
+            return
+        try:
+            self.frame.configure(fg_color=self._bg_color())
+        except tk.TclError:
+            pass
+        if self._text_label is not None and self._text_label.winfo_exists():
+            self._update_text_decoration()
+        self._render_checkbox()
+        self._update_time_label()
+        self._refresh_icon_visibility()
 
     @staticmethod
     def _extract_hhmm(value: str) -> str:
@@ -227,65 +341,3 @@ class TaskWidget:
             return dt.strftime("%H:%M")
         except (ValueError, TypeError):
             return value[:5]
-
-    def _on_hover_enter(self, event=None) -> None:
-        if self._destroyed:
-            return
-        self._hover = True
-        if self._style == "minimal":
-            try:
-                self.frame.configure(fg_color=self._theme.get("bg_secondary"))
-            except tk.TclError:
-                pass
-        self._set_icons_visible(True)
-
-    def _on_hover_leave(self, event=None) -> None:
-        if self._destroyed:
-            return
-        self._hover = False
-        if self._style == "minimal":
-            try:
-                self.frame.configure(fg_color="transparent")
-            except tk.TclError:
-                pass
-        self._set_icons_visible(False)
-
-    def _set_icons_visible(self, visible: bool) -> None:
-        """PITFALL 6: 'invisible' color = current bg (пересчитываем при theme switch)."""
-        color = self._theme.get("text_secondary") if visible else self._theme.get(
-            "bg_secondary" if self._style == "card" else "bg_primary")
-        for btn in (self._edit_btn, self._del_btn):
-            if btn is not None:
-                try:
-                    btn.configure(text_color=color)
-                except tk.TclError:
-                    pass
-
-    def _on_checkbox_click(self, event=None) -> None:
-        """Toggle done + callback (optimistic UI)."""
-        if self._destroyed:
-            return
-        new_done = not self._task.done
-        self._task.done = new_done
-        self._render_checkbox()
-        self._update_time_label()
-        try:
-            self._on_toggle(self._task.id, new_done)
-        except Exception as exc:
-            logger.error("on_toggle callback failed: %s", exc)
-
-    def _apply_theme(self, palette: dict) -> None:
-        """ThemeManager callback — перекрасить всё (PITFALL 6)."""
-        if self._destroyed:
-            return
-        try:
-            if self._style == "card":
-                self.frame.configure(fg_color=palette.get("bg_secondary"))
-            if self._cb_canvas and self._cb_canvas.winfo_exists():
-                self._cb_canvas.configure(
-                    bg=palette.get("bg_secondary" if self._style == "card" else "bg_primary"))
-        except tk.TclError:
-            pass
-        self._render_checkbox()
-        self._update_time_label()
-        self._set_icons_visible(self._hover)

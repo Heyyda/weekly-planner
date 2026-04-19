@@ -92,13 +92,37 @@ class Task:
         return self.deleted_at is None
 
     def is_overdue(self) -> bool:
-        """Просроченная = не выполнена и дата прошла."""
+        """Просроченная = не выполнена и дедлайн прошёл.
+
+        Случаи overdue:
+          - day < today  (вчерашняя невыполненная)
+          - day == today И time_deadline прошло (сегодняшняя с временем)
+        """
         if self.done or not self.day or self.deleted_at is not None:
             return False
         try:
-            return date.fromisoformat(self.day) < date.today()
+            task_day = date.fromisoformat(self.day)
         except ValueError:
             return False
+        today = date.today()
+        if task_day < today:
+            return True
+        if task_day == today and self.time_deadline:
+            try:
+                now = datetime.now(timezone.utc)
+                td = self.time_deadline
+                if "T" in td:
+                    deadline = datetime.fromisoformat(td.replace("Z", "+00:00"))
+                else:
+                    hh, mm = td.split(":")
+                    deadline_local = datetime.now().replace(
+                        hour=int(hh), minute=int(mm), second=0, microsecond=0,
+                    )
+                    deadline = deadline_local.astimezone(timezone.utc)
+                return now >= deadline
+            except (ValueError, TypeError):
+                return False
+        return False
 
     def to_dict(self) -> dict:
         """Сериализация для cache.json."""

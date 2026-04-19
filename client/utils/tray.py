@@ -22,7 +22,8 @@ from client.ui.themes import ThemeManager
 
 logger = logging.getLogger(__name__)
 
-TRAY_ICON_SIZE = 32  # Windows DPI-friendly (16 слишком мелкий на HiDPI)
+TRAY_ICON_SIZE = 64  # v0.4.0: 64×64 для корректного отображения на HiDPI ноутбуках
+                     # (32 становился 1/4 размера на 200% scale)
 APP_TITLE = "Личный Еженедельник"
 
 # ---- Callback keys (контракт с WeeklyPlannerApp Plan 03-10) ----

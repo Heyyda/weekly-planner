@@ -59,13 +59,19 @@ PALETTES: dict[str, dict[str, str]] = {
     },
 }
 
-# ---- Fonts (verbatim from UI-SPEC §Typography) ----
+# ---- Fonts — modern SF-inspired stack via Segoe UI Variable ----
+_FONT_FAMILY = "Segoe UI Variable"
+_FONT_MONO = "Cascadia Mono"
+
 FONTS: dict[str, tuple] = {
-    "h1":      ("Segoe UI Variable", 14, "bold"),
-    "body":    ("Segoe UI Variable", 13, "normal"),
-    "caption": ("Segoe UI Variable", 11, "normal"),
-    "icon":    ("Segoe UI Variable", 28, "bold"),
-    "mono":    ("Cascadia Code", 11, "normal"),
+    "h1":      (_FONT_FAMILY, 16, "bold"),     # Week header
+    "h2":      (_FONT_FAMILY, 14, "bold"),     # Day header
+    "body":    (_FONT_FAMILY, 13, "normal"),   # Task text
+    "body_m":  (_FONT_FAMILY, 13, "bold"),     # Emphasis
+    "caption": (_FONT_FAMILY, 11, "normal"),   # Meta (counts, hints)
+    "small":   (_FONT_FAMILY, 10, "normal"),   # Tiny labels
+    "icon":    (_FONT_FAMILY, 24, "bold"),
+    "mono":    (_FONT_MONO, 12, "normal"),     # Time display
 }
 
 

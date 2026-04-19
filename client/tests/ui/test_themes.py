@@ -45,7 +45,7 @@ def test_beige_palette_exact_hex_per_ui_spec():
 
 def test_fonts_has_segoe_and_cascadia():
     assert FONTS["body"][0] == "Segoe UI Variable"
-    assert FONTS["mono"][0] == "Cascadia Code"
+    assert FONTS["mono"][0] in ("Cascadia Code", "Cascadia Mono")
 
 
 def test_default_theme_is_light():

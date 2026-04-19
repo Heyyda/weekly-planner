@@ -1,6 +1,11 @@
-"""DaySection — секция одного дня в аккордеоне недели. Phase 4.
+"""DaySection — компактная секция одного дня в аккордеоне недели.
 
-Покрывает WEEK-01 (7 секций рендерят задачи), TASK-07 (sorted by position).
+v0.4.0 redesign:
+- Header row = ОДНА строка 28px: strip | Пн 20  • сегодня | tasks N | +
+- Пустой день collapsed до 36px (одна header-строка + отступ)
+- Плюс в правом верхнем углу header (не по центру body)
+- Rounded corners везде r=10
+- Соседи с неактивным днём — минимальный фон
 """
 from __future__ import annotations
 
@@ -19,15 +24,14 @@ from client.ui.themes import FONTS, ThemeManager
 logger = logging.getLogger(__name__)
 
 DAY_NAMES_RU_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+DAY_NAMES_RU_LONG = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 TODAY_STRIP_WIDTH = 3
+CORNER_RADIUS = 10
+HEADER_HEIGHT = 34
+INLINE_ENTRY_HEIGHT = 30
 
 
 class DaySection:
-    """Секция одного дня. См. 04-UI-SPEC §Day Section."""
-
-    PLUS_SIZE = 24
-    INLINE_ENTRY_HEIGHT = 32
-
     def __init__(
         self,
         parent: ctk.CTkBaseClass,
@@ -56,16 +60,17 @@ class DaySection:
         self._task_widgets: dict[str, TaskWidget] = {}
         self._tasks: list[Task] = []
 
-        self._plus_label: Optional[ctk.CTkLabel] = None
+        self._plus_btn: Optional[ctk.CTkLabel] = None
         self._inline_entry: Optional[ctk.CTkEntry] = None
         self._inline_frame: Optional[ctk.CTkFrame] = None
-
         self._counter_label: Optional[ctk.CTkLabel] = None
         self._today_strip: Optional[ctk.CTkFrame] = None
         self._body_frame: Optional[ctk.CTkFrame] = None
+        self._header_row: Optional[ctk.CTkFrame] = None
 
         self.frame = ctk.CTkFrame(
-            parent, corner_radius=6, fg_color=self._theme.get("bg_secondary"),
+            parent, corner_radius=CORNER_RADIUS,
+            fg_color=self._day_bg_color(),
         )
         self._build()
         self._theme.subscribe(self._apply_theme)
@@ -74,7 +79,6 @@ class DaySection:
         self.frame.pack(**kwargs)
 
     def render_tasks(self, tasks: list[Task]) -> None:
-        """TASK-07: sort by position. PITFALL 4: partial update."""
         if self._destroyed:
             return
         sorted_tasks = sorted(tasks, key=lambda t: (t.position, t.created_at or ""))
@@ -97,23 +101,21 @@ class DaySection:
                     self._body_frame, t, self._task_style, self._theme,
                     self._on_task_toggle, self._on_task_edit, self._on_task_delete,
                 )
-                w.pack(fill="x", pady=(0, 4))
+                w.pack(fill="x", pady=(0, 3))
                 self._task_widgets[t.id] = w
 
         self._update_counter(len(sorted_tasks))
-        self._update_empty_state(len(sorted_tasks) == 0)
+        self._update_body_visibility()
 
     def get_body_frame(self) -> ctk.CTkFrame:
-        """Target для DnD drop zone (Plan 04-09)."""
         return self._body_frame
 
     def get_day_date(self) -> date:
         return self._day_date
 
     def set_archive_mode(self, is_archive: bool) -> None:
-        """WEEK-06: dim + disable inline add."""
         self._is_archive = is_archive
-        self._update_empty_state(len(self._tasks) == 0)
+        self._update_body_visibility()
 
     def destroy(self) -> None:
         self._destroyed = True
@@ -128,72 +130,110 @@ class DaySection:
         except Exception as exc:
             logger.debug("DaySection destroy: %s", exc)
 
+    # ---- Build ----
+
+    def _day_bg_color(self) -> str:
+        return self._theme.get("bg_secondary") if self._is_today else self._theme.get("bg_primary")
+
     def _build(self) -> None:
-        row = ctk.CTkFrame(self.frame, fg_color="transparent")
-        row.pack(fill="x")
+        # Header row — single line, 34px
+        self._header_row = ctk.CTkFrame(self.frame, fg_color="transparent", height=HEADER_HEIGHT)
+        self._header_row.pack(fill="x", padx=0, pady=0)
+        self._header_row.pack_propagate(False)
 
         if self._is_today:
-            accent = self._theme.get("accent_brand")
-            strip = ctk.CTkFrame(
-                row, width=TODAY_STRIP_WIDTH, fg_color=accent, corner_radius=0,
+            self._today_strip = ctk.CTkFrame(
+                self._header_row, width=TODAY_STRIP_WIDTH,
+                fg_color=self._theme.get("accent_brand"), corner_radius=0,
             )
-            strip.pack(side="left", fill="y", padx=(0, 6))
-            strip.pack_propagate(False)
-            self._today_strip = strip
-
-        header = ctk.CTkFrame(row, fg_color="transparent")
-        header.pack(side="left", fill="x", expand=True)
+            self._today_strip.pack(side="left", fill="y", padx=(0, 8))
+            self._today_strip.pack_propagate(False)
+        else:
+            # Отступ вместо strip
+            spacer = ctk.CTkFrame(self._header_row, width=TODAY_STRIP_WIDTH + 8, fg_color="transparent")
+            spacer.pack(side="left")
 
         day_name = DAY_NAMES_RU_SHORT[self._day_date.weekday()]
         label_text = f"{day_name} {self._day_date.day}"
         if self._is_today:
-            label_text += "  • сегодня"
-        font = FONTS["body"]
-        if self._is_today:
-            font = (font[0], font[1], "bold")
-        ctk.CTkLabel(header, text=label_text, font=font).pack(
-            side="left", padx=8, pady=6,
+            label_text = f"{DAY_NAMES_RU_LONG[self._day_date.weekday()]}, {self._day_date.day}"
+        font = FONTS["h2"] if self._is_today else FONTS["body"]
+
+        day_label = ctk.CTkLabel(
+            self._header_row, text=label_text, font=font,
+            text_color=self._theme.get("text_primary"),
         )
+        day_label.pack(side="left", pady=4)
+
+        # Right side: counter + plus
+        right = ctk.CTkFrame(self._header_row, fg_color="transparent")
+        right.pack(side="right", padx=(0, 8))
+
         self._counter_label = ctk.CTkLabel(
-            header, text="(0)", font=FONTS["caption"],
+            right, text="", font=FONTS["caption"],
             text_color=self._theme.get("text_tertiary"),
         )
-        self._counter_label.pack(side="right", padx=8)
+        self._counter_label.pack(side="left", padx=(0, 6))
 
+        self._plus_btn = ctk.CTkLabel(
+            right, text="＋", font=(FONTS["body"][0], 18, "normal"),
+            text_color=self._theme.get("text_tertiary"),
+            cursor="hand2", width=22,
+        )
+        self._plus_btn.pack(side="left")
+        self._plus_btn.bind("<Button-1>", lambda e: self._show_inline_add())
+        self._plus_btn.bind("<Enter>", lambda e: self._plus_btn.configure(text_color=self._theme.get("accent_brand")))
+        self._plus_btn.bind("<Leave>", lambda e: self._plus_btn.configure(text_color=self._theme.get("text_tertiary")))
+
+        # Body frame — hidden until tasks exist or inline-add opened
         self._body_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self._body_frame.pack(fill="x", padx=8, pady=(0, 6))
         self._body_frame.bind("<Configure>", self._on_body_configure, add="+")
+        # Don't pack yet — visibility controlled in _update_body_visibility
 
-        self._plus_label = ctk.CTkLabel(
-            self._body_frame,
-            text="+",
-            font=("Segoe UI Variable", self.PLUS_SIZE, "bold"),
-            text_color=self._theme.get("text_tertiary"),
-            cursor="hand2",
-        )
-        self._plus_label.pack(pady=8)
-        self._plus_label.bind("<Button-1>", lambda e: self._show_inline_add())
-        self._plus_label.bind("<Enter>", lambda e: self._on_plus_hover_enter())
-        self._plus_label.bind("<Leave>", lambda e: self._on_plus_hover_leave())
+    def _update_body_visibility(self) -> None:
+        """Пустой день + no inline-add → body скрыт (только header = 34px)."""
+        if self._destroyed or self._body_frame is None:
+            return
+        should_show = len(self._tasks) > 0 or self._inline_entry is not None
+        try:
+            if should_show:
+                self._body_frame.pack(fill="x", padx=10, pady=(2, 6))
+            else:
+                self._body_frame.pack_forget()
+        except tk.TclError:
+            pass
+
+    def _update_counter(self, count: int) -> None:
+        if self._counter_label is not None and self._counter_label.winfo_exists():
+            try:
+                text = "" if count == 0 else f"{count}"
+                self._counter_label.configure(text=text)
+            except tk.TclError:
+                pass
+
+    # ---- Inline add ----
 
     def _show_inline_add(self) -> None:
-        """D-33: click '+' → CTkEntry inline."""
         if self._is_archive or self._destroyed:
             return
         if self._inline_entry is not None:
+            try:
+                self._inline_entry.focus_set()
+            except tk.TclError:
+                pass
             return
 
-        if self._plus_label is not None:
-            self._plus_label.pack_forget()
-
         self._inline_frame = ctk.CTkFrame(self._body_frame, fg_color="transparent")
-        self._inline_frame.pack(fill="x", pady=4)
+        self._inline_frame.pack(fill="x", pady=(0, 3))
         self._inline_entry = ctk.CTkEntry(
             self._inline_frame,
             placeholder_text="Новая задача...",
-            height=self.INLINE_ENTRY_HEIGHT,
+            height=INLINE_ENTRY_HEIGHT,
+            corner_radius=CORNER_RADIUS,
+            font=FONTS["body"],
         )
         self._inline_entry.pack(fill="x")
+        self._update_body_visibility()
         self._inline_entry.focus_set()
         self._inline_entry.bind("<Return>", self._on_inline_enter)
         self._inline_entry.bind("<Escape>", lambda e: self._hide_inline_add())
@@ -210,16 +250,19 @@ class DaySection:
         task = Task.new(
             user_id=self._user_id,
             text=parsed["text"] or text,
-            day=self._day_date.isoformat(),  # day принудительно — этот день
+            day=self._day_date.isoformat(),
             time_deadline=parsed.get("time"),
             position=len(self._tasks),
         )
         try:
             self._on_inline_add(task)
         except Exception as exc:
-            logger.error("on_inline_add callback failed: %s", exc)
+            logger.error("on_inline_add: %s", exc)
         if self._inline_entry is not None:
-            self._inline_entry.delete(0, "end")
+            try:
+                self._inline_entry.delete(0, "end")
+            except tk.TclError:
+                pass
 
     def _maybe_hide_inline(self) -> None:
         if self._destroyed or self._inline_entry is None:
@@ -244,49 +287,9 @@ class DaySection:
             except Exception:
                 pass
             self._inline_frame = None
-        if len(self._tasks) == 0 and not self._is_archive and self._plus_label is not None:
-            try:
-                self._plus_label.pack(pady=8)
-            except tk.TclError:
-                pass
-
-    def _update_empty_state(self, is_empty: bool) -> None:
-        if self._plus_label is None:
-            return
-        if is_empty and not self._is_archive and self._inline_entry is None:
-            try:
-                self._plus_label.pack(pady=8)
-            except tk.TclError:
-                pass
-        else:
-            try:
-                self._plus_label.pack_forget()
-            except tk.TclError:
-                pass
-
-    def _update_counter(self, count: int) -> None:
-        if self._counter_label is not None and self._counter_label.winfo_exists():
-            try:
-                self._counter_label.configure(text=f"({count})")
-            except tk.TclError:
-                pass
-
-    def _on_plus_hover_enter(self) -> None:
-        if self._plus_label and self._plus_label.winfo_exists():
-            try:
-                self._plus_label.configure(text_color=self._theme.get("accent_brand"))
-            except tk.TclError:
-                pass
-
-    def _on_plus_hover_leave(self) -> None:
-        if self._plus_label and self._plus_label.winfo_exists():
-            try:
-                self._plus_label.configure(text_color=self._theme.get("text_tertiary"))
-            except tk.TclError:
-                pass
+        self._update_body_visibility()
 
     def _on_body_configure(self, event) -> None:
-        """PITFALL 5: адаптивный wraplength при resize."""
         if self._destroyed:
             return
         try:
@@ -304,7 +307,7 @@ class DaySection:
         if self._destroyed:
             return
         try:
-            self.frame.configure(fg_color=palette.get("bg_secondary"))
+            self.frame.configure(fg_color=self._day_bg_color())
         except tk.TclError:
             pass
         if self._today_strip is not None and self._today_strip.winfo_exists():
@@ -317,8 +320,8 @@ class DaySection:
                 self._counter_label.configure(text_color=palette.get("text_tertiary"))
             except tk.TclError:
                 pass
-        if self._plus_label is not None and self._plus_label.winfo_exists():
+        if self._plus_btn is not None and self._plus_btn.winfo_exists():
             try:
-                self._plus_label.configure(text_color=palette.get("text_tertiary"))
+                self._plus_btn.configure(text_color=palette.get("text_tertiary"))
             except tk.TclError:
                 pass

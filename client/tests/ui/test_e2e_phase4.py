@@ -256,7 +256,7 @@ def test_e2e_empty_day_shows_plus(e2e_app):
     mw = e2e_app["mw"]
     today = date.today()
     ds = mw._day_sections[today]
-    assert ds._plus_label is not None
+    assert ds._plus_btn is not None
     e2e_app["root"].update_idletasks()
 
 

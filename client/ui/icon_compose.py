@@ -37,21 +37,24 @@ def render_overlay_image(
     pulse_t: float = 0.0,
 ) -> Image.Image:
     """
-    Создать финальную PIL.Image (RGBA) — rounded-square фон + иконка + badge.
-
-    Args:
-        size: сторона квадрата в пикселях (56 для overlay, 16/32 для tray).
-        state: "default" | "empty" | "overdue".
-        task_count: количество задач сегодня (badge для state="default").
-        overdue_count: количество просроченных (badge для state="overdue").
-        pulse_t: позиция в pulse-цикле [0.0..1.0].
-            0.0 = синий, 0.5 = красный, 1.0 = синий.
-            Используется только для state="overdue".
-
-    Returns:
-        PIL.Image.Image в режиме RGBA. Caller обязан хранить ссылку на
-        ImageTk.PhotoImage — иначе Tkinter Canvas потеряет картинку (Pitfall 4).
+    Создать PIL.Image (RGBA) — rounded-square + иконка + badge.
+    Supersampling 3x для плавных краёв (v0.4.0).
     """
+    # Supersampling: render at 3x then downscale with LANCZOS for smooth anti-aliasing
+    if size >= 24:
+        hi = _render_overlay_image_raw(size * 3, state, task_count, overdue_count, pulse_t)
+        return hi.resize((size, size), Image.LANCZOS)
+    return _render_overlay_image_raw(size, state, task_count, overdue_count, pulse_t)
+
+
+def _render_overlay_image_raw(
+    size: int,
+    state: str = "default",
+    task_count: int = 0,
+    overdue_count: int = 0,
+    pulse_t: float = 0.0,
+) -> Image.Image:
+    """Raw renderer — вызывается через render_overlay_image с supersampling."""
     # Робастная обработка pulse_t
     try:
         t = float(pulse_t)

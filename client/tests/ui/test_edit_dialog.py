@@ -50,14 +50,16 @@ def test_text_field_initial_value(ed_deps):
 def test_time_field_initial_value(ed_deps):
     task = ed_deps["factory"](time="14:30")
     dlg = _make(ed_deps, task=task)
-    assert dlg._time_var.get() == "14:30"
+    assert dlg._hh_var.get() == "14"
+    assert dlg._mm_var.get() == "30"
+    assert dlg._time_enabled_var.get() is True
     dlg._cancel()
 
 
 def test_time_field_empty_for_no_time(ed_deps):
     task = ed_deps["factory"]()
     dlg = _make(ed_deps, task=task)
-    assert dlg._time_var.get() == ""
+    assert dlg._time_enabled_var.get() is False
     dlg._cancel()
 
 
@@ -85,34 +87,27 @@ def test_save_disabled_empty_text(ed_deps):
     dlg._cancel()
 
 
-def test_save_disabled_invalid_hour(ed_deps):
-    dlg = _make(ed_deps)
-    dlg._time_var.set("25:30")
-    ed_deps["parent"].update_idletasks()
-    assert str(dlg._save_btn.cget("state")) == "disabled"
+def test_time_picker_options_are_valid(ed_deps):
+    """HH picker — 24 options 00-23; MM picker — 12 options в 5-минутных шагах."""
+    from client.ui.edit_dialog import HH_OPTIONS, MM_OPTIONS
+    assert len(HH_OPTIONS) == 24
+    assert HH_OPTIONS[0] == "00" and HH_OPTIONS[-1] == "23"
+    assert len(MM_OPTIONS) == 12
+    assert MM_OPTIONS[0] == "00" and MM_OPTIONS[-1] == "55"
+
+
+def test_clear_time_disables(ed_deps):
+    task = ed_deps["factory"](time="14:30")
+    dlg = _make(ed_deps, task=task)
+    assert dlg._time_enabled_var.get() is True
+    dlg._clear_time()
+    assert dlg._time_enabled_var.get() is False
     dlg._cancel()
 
 
-def test_save_disabled_invalid_minute(ed_deps):
+def test_time_empty_save_enabled(ed_deps):
+    """Задача без времени сохраняется нормально (текст есть)."""
     dlg = _make(ed_deps)
-    dlg._time_var.set("14:99")
-    ed_deps["parent"].update_idletasks()
-    assert str(dlg._save_btn.cget("state")) == "disabled"
-    dlg._cancel()
-
-
-def test_save_disabled_invalid_format(ed_deps):
-    dlg = _make(ed_deps)
-    dlg._time_var.set("abc:def")
-    ed_deps["parent"].update_idletasks()
-    assert str(dlg._save_btn.cget("state")) == "disabled"
-    dlg._cancel()
-
-
-def test_save_enabled_empty_time(ed_deps):
-    dlg = _make(ed_deps)
-    dlg._time_var.set("")
-    ed_deps["parent"].update_idletasks()
     assert str(dlg._save_btn.cget("state")) == "normal"
     dlg._cancel()
 
@@ -160,8 +155,8 @@ def test_delete_calls_on_delete(ed_deps):
 def test_clear_time(ed_deps):
     task = ed_deps["factory"](time="14:30")
     dlg = _make(ed_deps, task=task)
-    dlg._time_var.set("")
-    assert dlg._time_var.get() == ""
+    dlg._clear_time()
+    assert dlg._time_enabled_var.get() is False
     dlg._cancel()
 
 
@@ -184,10 +179,11 @@ def test_close_dialog_called_from_multiple_exits():
     assert source.count("self._close_dialog()") >= 3
 
 
-def test_trace_add_time_validation():
+def test_time_picker_is_optionmenu():
+    """v0.4.0: time picker = CTkOptionMenu, не Entry с trace_add."""
     source = inspect.getsource(EditDialog)
-    assert "trace_add" in source
-    assert "_on_time_changed" in source
+    assert "CTkOptionMenu" in source
+    assert "_hh_var" in source and "_mm_var" in source
 
 
 def test_rehhmm_pattern():

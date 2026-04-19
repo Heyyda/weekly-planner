@@ -211,22 +211,38 @@ class NotificationManager:
 
     @staticmethod
     def _parse_deadline(s: Optional[str]) -> Optional[datetime]:
-        """Разобрать ISO datetime string в datetime с timezone.
+        """Разобрать time_deadline в UTC datetime.
 
-        Поддерживает: "2024-04-15T14:00:00Z", "2024-04-15T14:00:00+00:00".
-        Returns None если строка пустая, None или невалидная.
+        Поддерживает:
+          - ISO "2024-04-15T14:00:00Z" / "+00:00"
+          - Краткий "HH:MM" → сегодня с этим временем (local, converted to UTC)
+        Returns None если пустая/невалидная.
         """
         if not s:
             return None
-        try:
-            # Нормализовать "Z" суффикс к "+00:00" (Python < 3.11 fromisoformat не понимает Z)
-            clean = s.replace("Z", "+00:00") if isinstance(s, str) else str(s)
-            dt = datetime.fromisoformat(clean)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            return dt
-        except (ValueError, TypeError):
-            return None
+        s = str(s)
+        # ISO datetime
+        if "T" in s:
+            try:
+                clean = s.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(clean)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except (ValueError, TypeError):
+                return None
+        # "HH:MM" → сегодня local → UTC
+        parts = s.split(":")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            try:
+                hh = int(parts[0]); mm = int(parts[1])
+                local = datetime.now().replace(
+                    hour=hh, minute=mm, second=0, microsecond=0,
+                )
+                return local.astimezone(timezone.utc)
+            except (ValueError, TypeError):
+                return None
+        return None
 
     def reset_dedup(self) -> None:
         """

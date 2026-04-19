@@ -1,14 +1,18 @@
-"""EditDialog — модальный диалог редактирования. Phase 4 Plan 04-07.
+"""EditDialog — модальный компактный диалог. v0.4.0 redesign.
 
-Покрывает TASK-03. PITFALL 1: grab_set после deiconify + grab_release на всех exit.
-PITFALL 2: CTkTextbox.get('1.0','end-1c').
+Changes vs v0.3.x:
+- Горизонтальные ряды с label слева + input справа (компактно)
+- Time picker = 2 CTkOptionMenu (HH 00-23, MM в 5-минутных шагах)
+- Уменьшённые padding-ы, крупные шрифты
+- Rounded corners везде r=10
+- modal-like через transient + topmost-flash + focus_force
 """
 from __future__ import annotations
 
 import logging
 import re
 import tkinter as tk
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable, Optional
 
 import customtkinter as ctk
@@ -24,10 +28,13 @@ DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MONTH_NAMES_RU = ['', 'янв', 'фев', 'мар', 'апр', 'май', 'июн',
                   'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 
+HH_OPTIONS = [f"{h:02d}" for h in range(24)]
+MM_OPTIONS = [f"{m:02d}" for m in range(0, 60, 5)]
+
 
 class EditDialog:
-    DIALOG_WIDTH = 380
-    DIALOG_HEIGHT = 360
+    DIALOG_WIDTH = 420
+    DIALOG_HEIGHT = 320
 
     def __init__(
         self,
@@ -47,8 +54,9 @@ class EditDialog:
         self._text_box: Optional[ctk.CTkTextbox] = None
         self._day_var: Optional[ctk.StringVar] = None
         self._day_dropdown: Optional[ctk.CTkOptionMenu] = None
-        self._time_var: Optional[tk.StringVar] = None
-        self._time_entry: Optional[ctk.CTkEntry] = None
+        self._hh_var: Optional[ctk.StringVar] = None
+        self._mm_var: Optional[ctk.StringVar] = None
+        self._time_enabled_var: Optional[tk.BooleanVar] = None
         self._done_var: Optional[tk.BooleanVar] = None
         self._save_btn: Optional[ctk.CTkButton] = None
 
@@ -56,6 +64,16 @@ class EditDialog:
         self._dialog.withdraw()
         self._dialog.title("Задача")
         self._dialog.resizable(False, False)
+        self._dialog.configure(fg_color=self._theme.get("bg_primary"))
+
+        try:
+            self._dialog.transient(parent_window)
+        except tk.TclError:
+            pass
+        try:
+            self._dialog.attributes("-toolwindow", True)
+        except tk.TclError:
+            pass
 
         try:
             px = parent_window.winfo_x() + parent_window.winfo_width() // 2 - self.DIALOG_WIDTH // 2
@@ -66,15 +84,19 @@ class EditDialog:
 
         self._build_ui()
 
-        # PITFALL 1: deiconify ДО grab_set
         self._dialog.deiconify()
         try:
-            self._dialog.grab_set()
-        except tk.TclError as exc:
-            logger.debug("grab_set failed: %s", exc)
-
+            self._dialog.lift()
+            self._dialog.attributes("-topmost", True)
+            self._dialog.after(200, lambda: self._dialog.attributes("-topmost", False))
+        except tk.TclError:
+            pass
         try:
-            self._dialog.focus_set()
+            self._dialog.grab_set()
+        except tk.TclError:
+            pass
+        try:
+            self._dialog.focus_force()
             if self._text_box:
                 self._text_box.focus_set()
         except tk.TclError:
@@ -87,78 +109,164 @@ class EditDialog:
         self._update_save_state()
 
     def _build_ui(self) -> None:
-        frame = ctk.CTkFrame(self._dialog)
-        frame.pack(fill="both", expand=True, padx=16, pady=16)
+        bg = self._theme.get("bg_primary")
+        text_primary = self._theme.get("text_primary")
+        text_sec = self._theme.get("text_secondary")
 
-        ctk.CTkLabel(frame, text="Текст", anchor="w").pack(fill="x")
-        self._text_box = ctk.CTkTextbox(frame, height=80, wrap="word")
-        self._text_box.pack(fill="x", pady=(0, 8))
+        content = ctk.CTkFrame(self._dialog, fg_color=bg, corner_radius=0)
+        content.pack(fill="both", expand=True, padx=16, pady=14)
+
+        # --- Text ---
+        ctk.CTkLabel(
+            content, text="Задача", font=FONTS["caption"],
+            text_color=text_sec, anchor="w",
+        ).pack(fill="x")
+        self._text_box = ctk.CTkTextbox(
+            content, height=60, wrap="word", corner_radius=10,
+            font=FONTS["body"],
+        )
+        self._text_box.pack(fill="x", pady=(2, 10))
         self._text_box.insert("1.0", self._task.text)
         self._text_box.bind("<KeyRelease>", lambda e: self._update_save_state())
 
-        ctk.CTkLabel(frame, text="День", anchor="w").pack(fill="x")
+        # --- Day + Time row ---
+        grid = ctk.CTkFrame(content, fg_color="transparent")
+        grid.pack(fill="x", pady=(0, 10))
+
+        day_col = ctk.CTkFrame(grid, fg_color="transparent")
+        day_col.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(
+            day_col, text="День", font=FONTS["caption"],
+            text_color=text_sec, anchor="w",
+        ).pack(fill="x")
         day_options = self._build_day_options()
         self._day_var = ctk.StringVar(value=self._get_current_day_label())
         self._day_dropdown = ctk.CTkOptionMenu(
-            frame, values=day_options, variable=self._day_var,
+            day_col, values=day_options, variable=self._day_var,
+            corner_radius=10, font=FONTS["body"], height=32,
         )
-        self._day_dropdown.pack(fill="x", pady=(0, 8))
+        self._day_dropdown.pack(fill="x", pady=(2, 0))
 
-        ctk.CTkLabel(frame, text="Время (HH:MM)", anchor="w").pack(fill="x")
-        time_row = ctk.CTkFrame(frame, fg_color="transparent")
-        time_row.pack(fill="x", pady=(0, 8))
+        time_col = ctk.CTkFrame(grid, fg_color="transparent")
+        time_col.pack(side="right", padx=(12, 0))
 
-        time_val = ""
-        if self._task.time_deadline:
-            td = self._task.time_deadline
-            if "T" in td:
-                try:
-                    from datetime import datetime
-                    dt = datetime.fromisoformat(td.replace("Z", "+00:00"))
-                    time_val = dt.strftime("%H:%M")
-                except (ValueError, TypeError):
-                    time_val = td[:5]
-            else:
-                time_val = td[:5] if len(td) >= 5 else td
+        ctk.CTkLabel(
+            time_col, text="Время", font=FONTS["caption"],
+            text_color=text_sec, anchor="w",
+        ).pack(fill="x")
 
-        self._time_var = tk.StringVar(value=time_val)
-        self._time_entry = ctk.CTkEntry(
-            time_row, textvariable=self._time_var, width=100, font=FONTS["mono"],
+        time_row = ctk.CTkFrame(time_col, fg_color="transparent")
+        time_row.pack(fill="x", pady=(2, 0))
+
+        cur_hh, cur_mm, has_time = self._current_time_parts()
+        self._time_enabled_var = tk.BooleanVar(value=has_time)
+        self._hh_var = ctk.StringVar(value=cur_hh if has_time else "09")
+        self._mm_var = ctk.StringVar(value=cur_mm if has_time else "00")
+
+        self._hh_menu = ctk.CTkOptionMenu(
+            time_row, values=HH_OPTIONS, variable=self._hh_var,
+            width=62, corner_radius=10, font=FONTS["mono"], height=32,
+            command=lambda *_: self._on_time_enabled_implicit(True),
         )
-        self._time_entry.pack(side="left")
+        self._hh_menu.pack(side="left")
+        ctk.CTkLabel(
+            time_row, text=":", font=FONTS["mono"], text_color=text_primary,
+        ).pack(side="left", padx=3)
+        self._mm_menu = ctk.CTkOptionMenu(
+            time_row, values=MM_OPTIONS, variable=self._mm_var,
+            width=62, corner_radius=10, font=FONTS["mono"], height=32,
+            command=lambda *_: self._on_time_enabled_implicit(True),
+        )
+        self._mm_menu.pack(side="left")
 
-        ctk.CTkButton(
-            time_row, text="✕", width=32,
-            command=lambda: self._time_var.set(""),
-        ).pack(side="left", padx=4)
+        self._time_clear_btn = ctk.CTkButton(
+            time_row, text="✕", width=26, height=32, corner_radius=10,
+            fg_color="transparent", border_width=1, text_color=text_sec,
+            hover_color=self._theme.get("bg_secondary"),
+            command=self._clear_time,
+        )
+        self._time_clear_btn.pack(side="left", padx=(6, 0))
 
-        self._time_var.trace_add("write", self._on_time_changed)
+        if not has_time:
+            self._set_time_menus_dim(True)
 
+        # --- Done checkbox ---
         self._done_var = tk.BooleanVar(value=self._task.done)
         ctk.CTkCheckBox(
-            frame, text="Выполнено", variable=self._done_var,
-            command=self._update_save_state,
-        ).pack(anchor="w", pady=(4, 12))
+            content, text="Выполнено", variable=self._done_var,
+            command=self._update_save_state, font=FONTS["body"],
+            corner_radius=4, checkbox_width=20, checkbox_height=20,
+        ).pack(anchor="w", pady=(0, 12))
 
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        # --- Buttons row ---
+        btn_frame = ctk.CTkFrame(content, fg_color="transparent")
         btn_frame.pack(fill="x")
 
         ctk.CTkButton(
-            btn_frame, text="🗑 Удалить",
-            fg_color=self._theme.get("accent_overdue"),
-            hover_color="#cc3333",
-            width=110,
-            command=self._delete,
+            btn_frame, text="Удалить",
+            fg_color="transparent", border_width=1,
+            border_color=self._theme.get("accent_overdue"),
+            text_color=self._theme.get("accent_overdue"),
+            hover_color=self._theme.get("bg_secondary"),
+            width=90, height=32, corner_radius=10,
+            font=FONTS["body"], command=self._delete,
         ).pack(side="left")
 
         ctk.CTkButton(
-            btn_frame, text="Отмена", width=80, command=self._cancel,
-        ).pack(side="right", padx=(4, 0))
+            btn_frame, text="Отмена",
+            fg_color="transparent", border_width=1,
+            text_color=text_primary,
+            hover_color=self._theme.get("bg_secondary"),
+            width=80, height=32, corner_radius=10,
+            font=FONTS["body"], command=self._cancel,
+        ).pack(side="right", padx=(6, 0))
 
         self._save_btn = ctk.CTkButton(
-            btn_frame, text="Сохранить", width=110, command=self._save,
+            btn_frame, text="Сохранить",
+            width=110, height=32, corner_radius=10,
+            font=FONTS["body_m"], command=self._save,
         )
         self._save_btn.pack(side="right")
+
+    # ---- Time helpers ----
+
+    def _current_time_parts(self) -> tuple[str, str, bool]:
+        td = self._task.time_deadline
+        if not td:
+            return ("09", "00", False)
+        try:
+            if "T" in td:
+                dt = datetime.fromisoformat(td.replace("Z", "+00:00"))
+                return (dt.strftime("%H"), dt.strftime("%M"), True)
+            parts = td.split(":")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                hh = f"{int(parts[0]):02d}"
+                mm = f"{int(parts[1]):02d}"
+                return (hh, mm, True)
+        except (ValueError, TypeError):
+            pass
+        return ("09", "00", False)
+
+    def _clear_time(self) -> None:
+        if self._time_enabled_var is not None:
+            self._time_enabled_var.set(False)
+        self._set_time_menus_dim(True)
+
+    def _on_time_enabled_implicit(self, enabled: bool) -> None:
+        if self._time_enabled_var is not None:
+            self._time_enabled_var.set(enabled)
+        self._set_time_menus_dim(not enabled)
+
+    def _set_time_menus_dim(self, dim: bool) -> None:
+        """Визуально показать что время отключено."""
+        color = self._theme.get("text_tertiary") if dim else self._theme.get("text_primary")
+        for menu in (self._hh_menu, self._mm_menu):
+            try:
+                menu.configure(text_color=color)
+            except (tk.TclError, AttributeError):
+                pass
+
+    # ---- Day helpers ----
 
     def _build_day_options(self) -> list[str]:
         today = date.today()
@@ -207,28 +315,7 @@ class EditDialog:
                 pass
         return self._task.day
 
-    def _on_time_changed(self, *_) -> None:
-        val = self._time_var.get() if self._time_var else ""
-        accent_overdue = self._theme.get("accent_overdue")
-        accent_done = self._theme.get("accent_done")
-        bg_sec = self._theme.get("bg_secondary")
-
-        if not val:
-            try:
-                self._time_entry.configure(border_color=bg_sec)
-            except (tk.TclError, AttributeError):
-                pass
-        elif self._is_valid_hhmm(val):
-            try:
-                self._time_entry.configure(border_color=accent_done)
-            except (tk.TclError, AttributeError):
-                pass
-        else:
-            try:
-                self._time_entry.configure(border_color=accent_overdue)
-            except (tk.TclError, AttributeError):
-                pass
-        self._update_save_state()
+    # ---- Validation ----
 
     @staticmethod
     def _is_valid_hhmm(val: str) -> bool:
@@ -243,20 +330,14 @@ class EditDialog:
             return False
 
     def _update_save_state(self) -> None:
-        """D-17: disabled если empty text OR invalid HH:MM."""
         if self._save_btn is None or not self._save_btn.winfo_exists():
             return
         text_ok = False
         if self._text_box and self._text_box.winfo_exists():
-            # PITFALL 2: end-1c убирает trailing newline
             text = self._text_box.get("1.0", "end-1c").strip()
             text_ok = bool(text)
-
-        time_val = self._time_var.get() if self._time_var else ""
-        time_ok = (not time_val) or self._is_valid_hhmm(time_val)
-
         try:
-            self._save_btn.configure(state="normal" if (text_ok and time_ok) else "disabled")
+            self._save_btn.configure(state="normal" if text_ok else "disabled")
         except tk.TclError:
             pass
 
@@ -269,19 +350,21 @@ class EditDialog:
         if not text:
             return
 
-        time_val = self._time_var.get().strip() if self._time_var else ""
-        if time_val and not self._is_valid_hhmm(time_val):
-            return
-
         day_iso = self._day_label_to_iso(self._day_var.get()) if self._day_var else self._task.day
         done = self._done_var.get() if self._done_var else self._task.done
+
+        time_val: Optional[str] = None
+        if self._time_enabled_var and self._time_enabled_var.get():
+            hh = self._hh_var.get() if self._hh_var else "09"
+            mm = self._mm_var.get() if self._mm_var else "00"
+            time_val = f"{hh}:{mm}"
 
         updated = Task(
             id=self._task.id,
             user_id=self._task.user_id,
             text=text,
             day=day_iso,
-            time_deadline=time_val or None,
+            time_deadline=time_val,
             done=done,
             position=self._task.position,
             created_at=self._task.created_at,
@@ -293,7 +376,7 @@ class EditDialog:
         try:
             self._on_save(updated)
         except Exception as exc:
-            logger.error("on_save callback failed: %s", exc)
+            logger.error("on_save: %s", exc)
 
     def _cancel(self) -> None:
         if self._closed:
@@ -308,21 +391,20 @@ class EditDialog:
         try:
             self._on_delete(task_id)
         except Exception as exc:
-            logger.error("on_delete callback failed: %s", exc)
+            logger.error("on_delete: %s", exc)
 
     def _close_dialog(self) -> None:
-        """PITFALL 1: grab_release ОБЯЗАТЕЛЬНО перед destroy на всех exit paths."""
         if self._closed:
             return
         self._closed = True
         try:
             self._dialog.grab_release()
-        except tk.TclError as exc:
-            logger.debug("grab_release: %s", exc)
+        except tk.TclError:
+            pass
         try:
             self._dialog.destroy()
-        except tk.TclError as exc:
-            logger.debug("dialog destroy: %s", exc)
+        except tk.TclError:
+            pass
 
     def destroy(self) -> None:
         self._cancel()

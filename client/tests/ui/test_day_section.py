@@ -54,18 +54,20 @@ def test_not_today_no_strip(ds_deps):
     ds.destroy()
 
 
-def test_counter_starts_at_zero(ds_deps):
+def test_counter_starts_empty(ds_deps):
+    """v0.4.0: count=0 → пустой текст (без '(0)')."""
     ds = _make(ds_deps)
-    assert ds._counter_label.cget("text") == "(0)"
+    assert ds._counter_label.cget("text") == ""
     ds.destroy()
 
 
 # ---------- render_tasks ----------
 
 def test_render_empty_shows_plus(ds_deps):
+    """v0.4.0: plus_btn (не plus_label) всегда в header — независимо от tasks."""
     ds = _make(ds_deps)
     ds.render_tasks([])
-    assert ds._plus_label is not None
+    assert ds._plus_btn is not None
     ds.destroy()
 
 
@@ -78,11 +80,12 @@ def test_render_single_task(ds_deps):
 
 
 def test_counter_updates(ds_deps):
+    """v0.4.0: counter показывает число без скобок."""
     ds = _make(ds_deps)
     t1 = ds_deps["factory"](text="a")
     t2 = ds_deps["factory"](text="b")
     ds.render_tasks([t1, t2])
-    assert ds._counter_label.cget("text") == "(2)"
+    assert ds._counter_label.cget("text") == "2"
     ds.destroy()
 
 

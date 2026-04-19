@@ -54,7 +54,7 @@ def test_valid_styles_set_has_three(tw_deps):
 
 def test_card_style_corner_radius(tw_deps):
     w = _make_widget(tw_deps, style="card")
-    assert w.frame.cget("corner_radius") == 8
+    assert w.frame.cget("corner_radius") == 10
     w.destroy()
 
 
@@ -66,7 +66,7 @@ def test_line_style_corner_radius_zero(tw_deps):
 
 def test_minimal_style_corner_radius(tw_deps):
     w = _make_widget(tw_deps, style="minimal")
-    assert w.frame.cget("corner_radius") == 6
+    assert w.frame.cget("corner_radius") == 10
     w.destroy()
 
 
@@ -74,8 +74,8 @@ def test_minimal_style_corner_radius(tw_deps):
 
 def test_checkbox_canvas_size(tw_deps):
     w = _make_widget(tw_deps)
-    assert int(w._cb_canvas.cget("width")) == 18
-    assert int(w._cb_canvas.cget("height")) == 18
+    assert int(w._cb_canvas.cget("width")) == 22  # v0.4.0 bumped 18→22
+    assert int(w._cb_canvas.cget("height")) == 22
     w.destroy()
 
 
@@ -118,9 +118,12 @@ def test_time_field_visible_with_time(tw_deps):
 
 
 def test_time_field_absent_without_time(tw_deps):
+    """v0.4.0: time_label создаётся но не packнут (скрыт) если time пустое."""
     task = tw_deps["factory"]()
     w = _make_widget(tw_deps, task=task)
-    assert w._time_label is None
+    # Label существует, но без pack manager (скрыт)
+    assert w._time_label is not None
+    assert w._time_label.winfo_manager() == ""  # not packed
     w.destroy()
 
 
@@ -214,10 +217,10 @@ def test_cyrillic_text_renders(tw_deps):
 # ---------- Markers ----------
 
 def test_d11_constants_present():
-    """D-11 grep marker."""
+    """D-11 grep marker (v0.4.0: bumped to 22×22 с r=4)."""
     source = inspect.getsource(TaskWidget)
-    assert "CHECKBOX_SIZE = 18" in source
-    assert "CHECKBOX_RADIUS = 3" in source
+    assert "CHECKBOX_SIZE = 22" in source
+    assert "CHECKBOX_RADIUS = 4" in source
 
 
 def test_get_body_frame_returns_body(tw_deps):
