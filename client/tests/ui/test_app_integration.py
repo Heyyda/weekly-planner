@@ -37,9 +37,19 @@ def test_app_instantiates(app_env, monkeypatch):
 
 
 def test_setup_unauthenticated_skips_main_components(app_env, monkeypatch):
-    """При auth=False создаётся placeholder, остальное не инстанцируется."""
+    """При auth=False (и LoginDialog cancelled) создаётся placeholder."""
     from client.core import auth as auth_mod
+    from client.ui import login_dialog as login_mod
     monkeypatch.setattr(auth_mod.AuthManager, "load_saved_token", lambda self: False)
+
+    # Mock LoginDialog — не открываем реальное модальное окно в тестах
+    class _MockLoginDialog:
+        def __init__(self, *args, **kwargs):
+            pass
+        def wait(self):
+            return False  # cancelled
+    monkeypatch.setattr(login_mod, "LoginDialog", _MockLoginDialog)
+    monkeypatch.setattr("client.app.LoginDialog", _MockLoginDialog)
 
     app = WeeklyPlannerApp(version="test")
     try:

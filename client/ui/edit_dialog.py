@@ -110,8 +110,16 @@ class EditDialog:
 
         time_val = ""
         if self._task.time_deadline:
-            time_val = self._task.time_deadline[:5] if len(
-                self._task.time_deadline) >= 5 else self._task.time_deadline
+            td = self._task.time_deadline
+            if "T" in td:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(td.replace("Z", "+00:00"))
+                    time_val = dt.strftime("%H:%M")
+                except (ValueError, TypeError):
+                    time_val = td[:5]
+            else:
+                time_val = td[:5] if len(td) >= 5 else td
 
         self._time_var = tk.StringVar(value=time_val)
         self._time_entry = ctk.CTkEntry(

@@ -22,6 +22,32 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _normalize_time_deadline(value: Optional[str], day_iso: Optional[str]) -> Optional[str]:
+    """Любой time_deadline → ISO datetime (сервер требует datetime).
+
+    Accept:
+      - None → None
+      - "HH:MM" + day "YYYY-MM-DD" → "YYYY-MM-DDTHH:MM:00+00:00"
+      - "HH:MM" без day → None (невозможно)
+      - уже ISO datetime ("2026-04-19T21:16:00Z") → как есть
+    """
+    if value is None or value == "":
+        return None
+    if "T" in value:
+        return value
+    # Pattern "HH:MM"
+    parts = value.split(":")
+    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit() and day_iso:
+        try:
+            hh = int(parts[0]); mm = int(parts[1])
+            d = date.fromisoformat(day_iso)
+            dt = datetime(d.year, d.month, d.day, hh, mm, tzinfo=timezone.utc)
+            return dt.isoformat().replace("+00:00", "Z")
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 @dataclass
 class Task:
     """
@@ -106,6 +132,7 @@ class TaskChange:
         Не включает change_id/ts (internal metadata).
         Для DELETE возвращает только {op, task_id}.
         Для UPDATE возвращает только не-None поля (partial update).
+        time_deadline "HH:MM" → комбинируется с day в ISO datetime (сервер ждёт datetime).
         """
         payload: dict = {"op": self.op, "task_id": self.task_id}
         if self.op == "delete":
@@ -113,6 +140,8 @@ class TaskChange:
         for key in ("text", "day", "time_deadline", "done", "position"):
             value = getattr(self, key)
             if value is not None:
+                if key == "time_deadline":
+                    value = _normalize_time_deadline(value, self.day)
                 payload[key] = value
         return payload
 

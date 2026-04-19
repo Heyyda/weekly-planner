@@ -32,7 +32,7 @@ class UISettings:
     notifications_mode: str = "sound_pulse"
     on_top: bool = True
     autostart: bool = False
-    overlay_position: list = field(default_factory=lambda: [100, 100])   # [x, y]
+    overlay_position: list = field(default_factory=lambda: [-1, -1])   # [-1,-1] = "first run, let overlay choose visible default"
     window_size: list = field(default_factory=lambda: [460, 600])         # [w, h]
     window_position: Optional[list] = None                                 # [x, y] или None (центр)
     version: int = 1

@@ -17,7 +17,7 @@ def test_defaults():
     assert s.notifications_mode == "sound_pulse"
     assert s.on_top is True
     assert s.autostart is False
-    assert s.overlay_position == [100, 100]
+    assert s.overlay_position == [-1, -1]  # sentinel: overlay computes visible default on first run
     assert s.window_size == [460, 600]
     assert s.window_position is None
     assert s.version == 1

@@ -55,15 +55,14 @@ def test_overlay_size_is_56x56(overlay_deps):
 
 
 def test_get_position_returns_settings_default(overlay_deps):
-    """OVR-02: get_position возвращает дефолтные (100, 100) из settings."""
+    """OVR-02: get_position отражает sentinel дефолта [-1,-1] до visible-position resolve."""
     from client.ui.overlay import OverlayManager
     overlay = OverlayManager(
         overlay_deps["root"], overlay_deps["settings_store"],
         overlay_deps["settings"], overlay_deps["theme"],
     )
-    # До init_overlay_style позиция из settings (default [100, 100])
     x, y = overlay._settings.overlay_position
-    assert (x, y) == (100, 100)
+    assert (x, y) == (-1, -1)
     overlay.destroy()
 
 
@@ -89,8 +88,8 @@ def test_validate_position_fallback_for_offscreen(overlay_deps):
         overlay_deps["settings"], overlay_deps["theme"],
     )
     x, y = overlay._validate_position([-5000, -5000])
-    # Off-screen — fallback
-    assert (x, y) == (100, 100)
+    # Off-screen — visible default (правый край)
+    assert x > 0 and y > 0
     overlay.destroy()
 
 
@@ -102,7 +101,7 @@ def test_validate_position_handles_non_list(overlay_deps):
         overlay_deps["settings"], overlay_deps["theme"],
     )
     x, y = overlay._validate_position(None)
-    assert (x, y) == (100, 100)
+    assert x > 0 and y > 0
     overlay.destroy()
 
 

@@ -40,18 +40,21 @@ def test_e2e_add_via_quick_capture_save(e2e_app):
     mw = e2e_app["mw"]
     storage = e2e_app["storage"]
 
-    tomorrow = (date.today() + timedelta(days=1)).isoformat()
-    mw.handle_quick_capture_save("встреча", tomorrow, "14:00")
+    # Выбираем день в текущей неделе (tomorrow может выпасть на след. неделю если сегодня воскресенье)
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    target_day = monday + timedelta(days=(today.weekday() + 1) % 7 if today.weekday() < 6 else 0)
+    target_iso = target_day.isoformat()
+    mw.handle_quick_capture_save("встреча", target_iso, "14:00")
 
     tasks = storage.get_visible_tasks()
     assert len(tasks) == 1
     assert tasks[0].text == "встреча"
-    assert tasks[0].day == tomorrow
+    assert tasks[0].day == target_iso
     assert tasks[0].time_deadline == "14:00"
 
     mw._refresh_tasks()
-    tomorrow_date = date.fromisoformat(tomorrow)
-    ds = mw._day_sections.get(tomorrow_date)
+    ds = mw._day_sections.get(target_day)
     assert ds is not None
     assert len(ds._task_widgets) == 1
 

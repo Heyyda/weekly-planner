@@ -35,6 +35,7 @@ from client.core.auth import AuthManager
 from client.core.paths import AppPaths
 from client.core.storage import LocalStorage
 from client.core.sync import SyncManager
+from client.ui.login_dialog import LoginDialog
 from client.ui.main_window import MainWindow
 from client.ui.overlay import OverlayManager
 from client.ui.pulse import PulseAnimator
@@ -132,11 +133,21 @@ class WeeklyPlannerApp:
             self._authenticated = False
 
         if not self._authenticated:
-            # Login-required placeholder: создать overlay с empty state + tooltip
-            # Phase 3 НЕ реализует полный login dialog (это Phase 4+ задача)
-            logger.warning("Не авторизован — показываем placeholder overlay")
-            self._setup_unauthenticated_placeholder()
-            return
+            # Post-v1: показать LoginDialog (блокирует до verify или cancel).
+            logger.info("Нет сохранённого токена — открываю LoginDialog")
+            dlg = LoginDialog(self.root, self.theme, self.auth)
+            success = dlg.wait()
+            if success:
+                try:
+                    self._authenticated = self.auth.load_saved_token()
+                except Exception as exc:
+                    logger.error("load_saved_token после LoginDialog: %s", exc)
+                    self._authenticated = False
+
+            if not self._authenticated:
+                logger.warning("Авторизация не завершена — fallback к placeholder overlay")
+                self._setup_unauthenticated_placeholder()
+                return
 
         # 4. Sync (background)
         self.sync = SyncManager(self.storage, self.auth)

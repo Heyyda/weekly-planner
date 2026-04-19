@@ -323,21 +323,30 @@ class OverlayManager:
         y = max(top, min(y, bottom - self.OVERLAY_SIZE))
         return (x, y)
 
+    def _default_visible_position(self) -> tuple:
+        """Правый край, верх primary monitor — Things 3-style дефолт."""
+        try:
+            sw = self._overlay.winfo_screenwidth()
+        except tk.TclError:
+            sw = 1920
+        x = max(0, sw - self.OVERLAY_SIZE - 24)
+        y = 80
+        return (x, y)
+
     def _validate_position(self, pos) -> tuple:
         """PITFALL 6: валидация сохранённой позиции против virtual desktop.
 
-        Если позиция вне видимой области (off-screen) — fallback (100, 100).
+        Если позиция вне видимой области — fallback к visible default (правый край).
         """
         try:
             x, y = int(pos[0]), int(pos[1])
         except (TypeError, ValueError, IndexError):
-            return (100, 100)
+            return self._default_visible_position()
         left, top, right, bottom = self._get_virtual_desktop_bounds()
-        # Строгая проверка: overlay хоть частично виден (минимум 10px)
         if x < left - self.OVERLAY_SIZE + 10 or x > right - 10:
-            logger.warning("Saved overlay_x=%d off-screen, fallback (100, 100)", x)
-            return (100, 100)
+            logger.warning("Saved overlay_x=%d off-screen → visible default", x)
+            return self._default_visible_position()
         if y < top - self.OVERLAY_SIZE + 10 or y > bottom - 10:
-            logger.warning("Saved overlay_y=%d off-screen, fallback (100, 100)", y)
-            return (100, 100)
+            logger.warning("Saved overlay_y=%d off-screen → visible default", y)
+            return self._default_visible_position()
         return (x, y)
