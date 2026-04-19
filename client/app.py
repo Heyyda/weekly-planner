@@ -475,20 +475,25 @@ class WeeklyPlannerApp:
                 self.pulse.stop()
 
     def _check_for_updates(self) -> None:
-        """DIST-04: non-blocking проверка /api/version. Logs only в Phase 6 MVP."""
+        """DIST-04: проверка /api/version. Если новая версия → UpdateBanner."""
         if self._quit_requested:
             return
         try:
             updater = UpdateManager(self.version)
             result = updater.check()
-            if result is not None:
-                new_version, url = result
-                logger.info(
-                    "UPDATE available: %s → %s (url=%s)",
-                    self.version, new_version, url,
-                )
-            else:
+            if result is None:
                 logger.debug("Update check: already on latest (%s)", self.version)
+                return
+            new_version, url, sha = result
+            logger.info("UPDATE available: %s → %s", self.version, new_version)
+            try:
+                from client.ui.update_banner import UpdateBanner
+                UpdateBanner(
+                    self.root, self.theme, updater,
+                    new_version=new_version, download_url=url, sha256=sha,
+                )
+            except Exception as exc:
+                logger.error("UpdateBanner failed: %s", exc)
         except Exception as exc:
             logger.debug("Update check failed (non-fatal): %s", exc)
 
