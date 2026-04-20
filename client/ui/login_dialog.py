@@ -13,6 +13,13 @@ Forest Phase E (260421-1jo):
   cream text (bg_primary). Back button — ghost. Error статус — clay через
   palette["accent_overdue"] вместо хардкодного error-hex. Theme-subscription
   для live-switching.
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+  CTkEntry (username, code) теперь получают явные fg_color, border_color,
+  text_color, placeholder_text_color из палитры. Без явных указаний CTk
+  применяет дефолтный серо-синий — в forest_dark entry выглядит чужеродно.
+  _apply_theme теперь обновляет и entry-колоры (live-switching пока диалог
+  открыт — редкий сценарий, но покрыт).
 """
 from __future__ import annotations
 
@@ -126,6 +133,19 @@ class LoginDialog:
         except tk.TclError:
             pass
 
+    def _style_entry(self, entry: ctk.CTkEntry) -> None:
+        """Forest entry: bg_secondary fill, bg_tertiary border, text_primary text
+        (Phase F — без explicit set CTk подбирает дефолтный серо-синий)."""
+        try:
+            entry.configure(
+                fg_color=self._theme.get("bg_secondary"),
+                border_color=self._theme.get("bg_tertiary"),
+                text_color=self._theme.get("text_primary"),
+                placeholder_text_color=self._theme.get("text_tertiary"),
+            )
+        except tk.TclError:
+            pass
+
     # ---- UI: Step 1 — username ----
 
     def _build_username_step(self) -> None:
@@ -156,6 +176,7 @@ class LoginDialog:
             width=320, height=36, font=FONTS["body"],
         )
         self._username_entry.pack(pady=(0, 8))
+        self._style_entry(self._username_entry)
         self._username_entry.bind("<Return>", lambda e: self._on_request_code())
         self._username_entry.focus_set()
 
@@ -202,6 +223,7 @@ class LoginDialog:
             width=320, height=36, font=FONTS["body"], justify="center",
         )
         self._code_entry.pack(pady=(0, 8))
+        self._style_entry(self._code_entry)
         self._code_entry.bind("<Return>", lambda e: self._on_verify_code())
         self._code_entry.focus_set()
 
@@ -310,7 +332,7 @@ class LoginDialog:
                 pass
 
     def _apply_theme(self, palette: dict) -> None:
-        """Live-update при смене темы — dialog, labels, buttons, status color."""
+        """Live-update при смене темы — dialog, labels, buttons, entries, status color."""
         if self._destroyed:
             return
         bg = palette.get("bg_primary")
@@ -330,6 +352,20 @@ class LoginDialog:
                 self._title_label.configure(text_color=text_primary)
             if self._desc_label is not None and self._desc_label.winfo_exists():
                 self._desc_label.configure(text_color=text_secondary)
+        except tk.TclError:
+            pass
+        # Phase F: entries — палитра применяется через _style_entry (учитывает все 4 цвета).
+        try:
+            if (
+                self._username_entry is not None
+                and self._username_entry.winfo_exists()
+            ):
+                self._style_entry(self._username_entry)
+            if (
+                self._code_entry is not None
+                and self._code_entry.winfo_exists()
+            ):
+                self._style_entry(self._code_entry)
         except tk.TclError:
             pass
         if self._primary_btn is not None:

@@ -1,4 +1,4 @@
-"""EditDialog — модальный компактный диалог. v0.4.0 redesign.
+"""EditDialog — модальный компактный диалог (fallback для задач вне текущей недели).
 
 Changes vs v0.3.x:
 - Горизонтальные ряды с label слева + input справа (компактно)
@@ -6,6 +6,16 @@ Changes vs v0.3.x:
 - Уменьшённые padding-ы, крупные шрифты
 - Rounded corners везде r=10
 - modal-like через transient + topmost-flash + focus_force
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+- Save button получил явный forest-fill (был дефолтный CTk синий — Phase A3 bug тут
+  не закрылся, т.к. файл использовался только как fallback).
+- Delete button — clay ghost (accent_overdue border+text). Отмена — neutral ghost.
+- CTkTextbox: явные fg_color/text_color/border_color через палитру.
+- CTkOptionMenu (day/hh/mm): forest-фон, бейзовые цвета через палитру.
+- CTkCheckBox: аналогично task_edit_card — accent_brand fill + text_primary text.
+- Все цвета резолвятся в _build_ui из `self._theme.get(...)` — при пересоздании
+  диалога (каждый EditDialog — одноразовый) подхватывается актуальная тема.
 """
 from __future__ import annotations
 
@@ -109,9 +119,16 @@ class EditDialog:
         self._update_save_state()
 
     def _build_ui(self) -> None:
+        # ---- Palette keys (Forest Phase F) ----
         bg = self._theme.get("bg_primary")
+        bg_sec = self._theme.get("bg_secondary")
+        bg_tert = self._theme.get("bg_tertiary")
         text_primary = self._theme.get("text_primary")
         text_sec = self._theme.get("text_secondary")
+        text_tert = self._theme.get("text_tertiary")
+        accent_brand = self._theme.get("accent_brand")
+        accent_brand_light = self._theme.get("accent_brand_light")
+        accent_overdue = self._theme.get("accent_overdue")
 
         content = ctk.CTkFrame(self._dialog, fg_color=bg, corner_radius=0)
         content.pack(fill="both", expand=True, padx=16, pady=14)
@@ -124,6 +141,10 @@ class EditDialog:
         self._text_box = ctk.CTkTextbox(
             content, height=60, wrap="word", corner_radius=10,
             font=FONTS["body"],
+            fg_color=bg_sec,
+            text_color=text_primary,
+            border_width=1,
+            border_color=bg_tert,
         )
         self._text_box.pack(fill="x", pady=(2, 10))
         self._text_box.insert("1.0", self._task.text)
@@ -144,6 +165,14 @@ class EditDialog:
         self._day_dropdown = ctk.CTkOptionMenu(
             day_col, values=day_options, variable=self._day_var,
             corner_radius=10, font=FONTS["body"], height=32,
+            fg_color=bg_sec,
+            button_color=bg_tert,
+            button_hover_color=accent_brand,
+            text_color=text_primary,
+            dropdown_fg_color=bg_sec,
+            dropdown_text_color=text_primary,
+            dropdown_hover_color=bg_tert,
+            dropdown_font=FONTS["body"],
         )
         self._day_dropdown.pack(fill="x", pady=(2, 0))
 
@@ -166,6 +195,14 @@ class EditDialog:
         self._hh_menu = ctk.CTkOptionMenu(
             time_row, values=HH_OPTIONS, variable=self._hh_var,
             width=62, corner_radius=10, font=FONTS["mono"], height=32,
+            fg_color=bg_sec,
+            button_color=bg_tert,
+            button_hover_color=accent_brand,
+            text_color=text_primary,
+            dropdown_fg_color=bg_sec,
+            dropdown_text_color=text_primary,
+            dropdown_hover_color=bg_tert,
+            dropdown_font=FONTS["mono"],
             command=lambda *_: self._on_time_enabled_implicit(True),
         )
         self._hh_menu.pack(side="left")
@@ -175,14 +212,25 @@ class EditDialog:
         self._mm_menu = ctk.CTkOptionMenu(
             time_row, values=MM_OPTIONS, variable=self._mm_var,
             width=62, corner_radius=10, font=FONTS["mono"], height=32,
+            fg_color=bg_sec,
+            button_color=bg_tert,
+            button_hover_color=accent_brand,
+            text_color=text_primary,
+            dropdown_fg_color=bg_sec,
+            dropdown_text_color=text_primary,
+            dropdown_hover_color=bg_tert,
+            dropdown_font=FONTS["mono"],
             command=lambda *_: self._on_time_enabled_implicit(True),
         )
         self._mm_menu.pack(side="left")
 
         self._time_clear_btn = ctk.CTkButton(
             time_row, text="✕", width=26, height=32, corner_radius=10,
-            fg_color="transparent", border_width=1, text_color=text_sec,
-            hover_color=self._theme.get("bg_secondary"),
+            fg_color="transparent", border_width=1,
+            border_color=bg_tert,
+            text_color=text_sec,
+            hover_color=bg_sec,
+            font=FONTS["body"],
             command=self._clear_time,
         )
         self._time_clear_btn.pack(side="left", padx=(6, 0))
@@ -196,34 +244,46 @@ class EditDialog:
             content, text="Выполнено", variable=self._done_var,
             command=self._update_save_state, font=FONTS["body"],
             corner_radius=4, checkbox_width=20, checkbox_height=20,
+            text_color=text_primary,
+            fg_color=accent_brand,
+            hover_color=accent_brand_light,
+            border_color=text_tert,
         ).pack(anchor="w", pady=(0, 12))
 
         # --- Buttons row ---
         btn_frame = ctk.CTkFrame(content, fg_color="transparent")
         btn_frame.pack(fill="x")
 
+        # Удалить — clay ghost: transparent fill + accent_overdue border/text.
         ctk.CTkButton(
             btn_frame, text="Удалить",
             fg_color="transparent", border_width=1,
-            border_color=self._theme.get("accent_overdue"),
-            text_color=self._theme.get("accent_overdue"),
-            hover_color=self._theme.get("bg_secondary"),
+            border_color=accent_overdue,
+            text_color=accent_overdue,
+            hover_color=bg_sec,
             width=90, height=32, corner_radius=10,
             font=FONTS["body"], command=self._delete,
         ).pack(side="left")
 
+        # Отмена — neutral ghost: transparent + text_secondary.
         ctk.CTkButton(
             btn_frame, text="Отмена",
             fg_color="transparent", border_width=1,
-            text_color=text_primary,
-            hover_color=self._theme.get("bg_secondary"),
+            border_color=bg_tert,
+            text_color=text_sec,
+            hover_color=bg_sec,
             width=80, height=32, corner_radius=10,
             font=FONTS["body"], command=self._cancel,
         ).pack(side="right", padx=(6, 0))
 
+        # Сохранить — Forest primary fill. Phase F: убран дефолтный CTk синий
+        # (fg_color/hover_color/text_color отсутствовали → CTk подбирал blue).
         self._save_btn = ctk.CTkButton(
             btn_frame, text="Сохранить",
             width=110, height=32, corner_radius=10,
+            fg_color=accent_brand,
+            hover_color=accent_brand_light,
+            text_color=bg,  # cream на forest-fill — высокий контраст
             font=FONTS["body_m"], command=self._save,
         )
         self._save_btn.pack(side="right")

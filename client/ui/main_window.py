@@ -15,6 +15,15 @@ Phase 4 (новое):
   - DragController с register_drop_zone per DaySection (Plan 04-09)
   - EditDialog при TaskWidget.on_edit (Plan 04-07)
   - Ctrl+Space keyboard → QuickCapture (D-30)
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+  - _root_frame и _scroll получили явный fg_color через палитру при создании
+    (до этого CTk выбирал дефолтный ctk.ThemeManager цвет — в forest_dark мог
+    давать серый оттенок не совпадающий с bg_primary).
+  - _apply_theme теперь обновляет и _scroll.configure(fg_color=bg) чтобы
+    скролл-фрейм перекрашивался при live-switching.
+  - Hardcoded fallback "#F5EFE6" (bg_primary из light-темы) заменён на резолв
+    через self._theme.get("bg_primary") — корректен для любой активной темы.
 """
 from __future__ import annotations
 
@@ -111,6 +120,8 @@ class MainWindow:
         self._title_label: Optional[ctk.CTkLabel] = None
         self._title_close_btn: Optional[ctk.CTkLabel] = None
         self._title_separator: Optional[ctk.CTkFrame] = None
+        # Phase F: _scroll exposed для _apply_theme
+        self._scroll: Optional[ctk.CTkScrollableFrame] = None
 
         self._day_sections: dict[date, DaySection] = {}
         self._drag_controller: Optional[DragController] = None
@@ -220,7 +231,12 @@ class MainWindow:
     # ---- Build ----
 
     def _build_ui(self) -> None:
-        self._root_frame = ctk.CTkFrame(self._window, corner_radius=0)
+        # Phase F: явный fg_color — избегаем CTk-дефолта (в forest_dark ctk.ThemeManager
+        # подбирает серо-синий который не совпадает с bg_primary).
+        bg_primary = self._theme.get("bg_primary")
+        self._root_frame = ctk.CTkFrame(
+            self._window, corner_radius=0, fg_color=bg_primary,
+        )
         self._root_frame.pack(fill="both", expand=True)
 
         self._build_title_bar(self._root_frame)
@@ -232,7 +248,11 @@ class MainWindow:
         )
         self._week_nav.pack(fill="x", side="top")
 
-        self._scroll = ctk.CTkScrollableFrame(self._root_frame)
+        # Phase F: fg_color для CTkScrollableFrame — по умолчанию CTk рисует
+        # в серо-синем ("gray17"/"gray86"), что в forest_dark выглядит чужеродно.
+        self._scroll = ctk.CTkScrollableFrame(
+            self._root_frame, fg_color=bg_primary,
+        )
         self._scroll.pack(fill="both", expand=True, padx=8, pady=4)
 
         self._undo_toast = UndoToastManager(
@@ -502,11 +522,17 @@ class MainWindow:
     # ---- Theme ----
 
     def _apply_theme(self, palette: dict) -> None:
-        bg = palette.get("bg_primary", "#F5EFE6")
+        # Phase F: fallback через self._theme.get — убран light-only хардкод "#F5EFE6"
+        # (был палитра light темы, в forest_dark давал светлый оттенок при частичном
+        # palette-dict из __init__).
+        bg = palette.get("bg_primary") or self._theme.get("bg_primary")
         try:
             self._window.configure(fg_color=bg)
             if hasattr(self, "_root_frame"):
                 self._root_frame.configure(fg_color=bg)
+            # Phase F: скролл-фрейм тоже перекрашиваем под bg_primary
+            if self._scroll is not None and self._scroll.winfo_exists():
+                self._scroll.configure(fg_color=bg)
         except tk.TclError:
             pass
         # Title bar перекрашивание (Plan 260421-06u).

@@ -8,6 +8,13 @@ CTkFrame + place() (НЕ CTkToplevel per research anti-pattern).
 Forest Phase E (260421-1jo):
   _apply_theme теперь обновляет не только bg, но и accent (undo-label text_color
   + bar_canvas bg). Палитра — forest-compatible (accent_brand = forest).
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+  "⟲ Задача удалена" лейбл также переотображался при смене темы. До Phase F
+  его text_color был зафиксирован в _build_toast и не обновлялся — в forest_dark
+  оставался светлым (text_primary от момента создания тоста), но при переключении
+  темы пока тост жив — текст оставался неверного оттенка. Теперь
+  _message_labels отслеживается и обновляется в _apply_theme.
 """
 from __future__ import annotations
 
@@ -55,6 +62,8 @@ class UndoToastManager:
         self._frames: list[ctk.CTkFrame] = []
         self._canvases: list[tk.Canvas] = []
         self._undo_labels: list[ctk.CTkLabel] = []
+        # Forest Phase F: отслеживаем message label для live-themeable text_color.
+        self._message_labels: list[ctk.CTkLabel] = []
         self._start_ms_list: list[int] = []
 
         theme_manager.subscribe(self._apply_theme)
@@ -113,13 +122,14 @@ class UndoToastManager:
         content = ctk.CTkFrame(toast, fg_color="transparent")
         content.pack(fill="x", padx=10, pady=6)
 
-        ctk.CTkLabel(
+        msg_label = ctk.CTkLabel(
             content,
             text="⟲ Задача удалена",
             text_color=text_primary,
             font=FONTS["body"],
             anchor="w",
-        ).pack(side="left")
+        )
+        msg_label.pack(side="left")
 
         undo_lbl = ctk.CTkLabel(
             content,
@@ -147,6 +157,7 @@ class UndoToastManager:
         self._frames.append(toast)
         self._canvases.append(bar_canvas)
         self._undo_labels.append(undo_lbl)
+        self._message_labels.append(msg_label)
 
         start_ms = int(time.monotonic() * 1000)
         self._root.after(
@@ -229,6 +240,8 @@ class UndoToastManager:
             self._canvases.pop(idx)
         if idx < len(self._undo_labels):
             self._undo_labels.pop(idx)
+        if idx < len(self._message_labels):
+            self._message_labels.pop(idx)
         if idx < len(self._start_ms_list):
             self._start_ms_list.pop(idx)
         try:
@@ -245,15 +258,22 @@ class UndoToastManager:
         return None
 
     def _apply_theme(self, palette: dict) -> None:
-        """Live-update всех живых тостов: bg, accent на undo-labels + canvas bars."""
+        """Live-update всех живых тостов: bg, message text, accent на undo-labels + canvas bars."""
         if self._destroyed:
             return
         bg = palette.get("bg_secondary")
+        text_primary = palette.get("text_primary")
         accent = palette.get("accent_brand")
         for frame in self._frames:
             try:
                 if frame.winfo_exists():
                     frame.configure(fg_color=bg)
+            except tk.TclError:
+                pass
+        for lbl in self._message_labels:
+            try:
+                if lbl.winfo_exists():
+                    lbl.configure(text_color=text_primary)
             except tk.TclError:
                 pass
         for lbl in self._undo_labels:

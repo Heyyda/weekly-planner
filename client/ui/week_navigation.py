@@ -2,6 +2,13 @@
 
 Покрывает WEEK-02 (prev/next arrows), WEEK-03 (today button), WEEK-06 (archive).
 D-29 header, D-30 keyboard shortcuts, D-31/D-32 archive semantics.
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+  _header_label получил явный text_color=text_primary. До Phase F label
+  наследовал CTk-default text_color — в forest_dark работало за счёт
+  ctk.set_appearance_mode но оставалось хрупким (любая смена темы без полного
+  rebuild могла оставить header-текст нечитаемым). _apply_theme теперь
+  обновляет text_color для _header_label при каждой смене темы.
 """
 from __future__ import annotations
 
@@ -163,6 +170,7 @@ class WeekNavigation:
         # Forest ghost-стиль: transparent bg + приглушённый текст + subtle hover.
         # Hotfix 260421-0jb: без явных fg_color CTkButton берёт дефолтный синий.
         bg_secondary = self._theme.get("bg_secondary")
+        text_primary = self._theme.get("text_primary")
         text_tertiary = self._theme.get("text_tertiary")
         text_secondary = self._theme.get("text_secondary")
 
@@ -176,7 +184,12 @@ class WeekNavigation:
         )
         self._prev_btn.pack(side="left", padx=4, pady=4)
 
-        self._header_label = ctk.CTkLabel(row, text="Неделя —", font=FONTS["h1"])
+        # Phase F: явный text_color=text_primary — заголовок недели должен
+        # читаться в обеих темах без надежды на CTk-дефолт.
+        self._header_label = ctk.CTkLabel(
+            row, text="Неделя —", font=FONTS["h1"],
+            text_color=text_primary,
+        )
         self._header_label.pack(side="left", expand=True)
 
         self._today_btn = ctk.CTkButton(
@@ -297,6 +310,7 @@ class WeekNavigation:
             # Ghost-стиль кнопок: transparent bg + Forest-цвета.
             # Hotfix 260421-0jb: live-reapply при forest_light ↔ forest_dark.
             bg_secondary = palette.get("bg_secondary")
+            text_primary = palette.get("text_primary")
             text_tertiary = palette.get("text_tertiary")
             text_secondary = palette.get("text_secondary")
 
@@ -314,6 +328,9 @@ class WeekNavigation:
                     text_color=text_secondary,
                     border_color=text_tertiary,
                 )
+            # Phase F: header_label text_color live-switching.
+            if self._header_label and self._header_label.winfo_exists():
+                self._header_label.configure(text_color=text_primary)
             # Archive-banner labels: приглушённый text_secondary, не ярко-синий.
             if (
                 self._archive_title_label is not None

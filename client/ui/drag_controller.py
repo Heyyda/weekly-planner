@@ -3,6 +3,14 @@
 Approach 2 (04-RESEARCH-DND): custom mouse bindings + CTkToplevel ghost.
 Critical: winfo-containing broken в CTkScrollableFrame → bbox hit-test.
 Ghost pre-created (avoid alpha-flash от recreate).
+
+Forest Phase F (260421-1ya) — dark-parity audit:
+- Ghost label получил явный text_color (был inherited — в forest_dark мог
+  читаться CTk-дефолтом неверно).
+- Убраны light-only hex-fallback'и из .get(..., "#EDE6D9") — DragController
+  всегда конструируется с заполненным dict, фоллбэк никогда не срабатывает,
+  но вводил в заблуждение при чтении кода (намёк на light-only происхождение).
+- _on_theme_change теперь обновляет и fg_color и text_color лейбла.
 """
 from __future__ import annotations
 
@@ -62,9 +70,13 @@ class GhostWindow:
         self._window = ctk.CTkToplevel(root)
         self._window.withdraw()
 
+        # Forest Phase F: text_color резолвится в init — ghost в forest_dark
+        # иначе наследует CTk-дефолт который в dark mode становится светлым
+        # но не гарантированно совпадает с text_primary.
         self._label = ctk.CTkLabel(
             self._window, text="", anchor="w",
-            fg_color=theme_colors.get("bg_secondary", "#EDE6D9"),
+            fg_color=theme_colors["bg_secondary"],
+            text_color=theme_colors["text_primary"],
             corner_radius=6,
         )
         self._label.pack(fill="both", expand=True, padx=4, pady=4)
@@ -137,9 +149,12 @@ class DragController:
         self._drag_offset_y: int = 0
         self._hovered_zone: Optional[DropZone] = None
 
+        # Forest Phase F: text_primary включён — ghost label остаётся читаемым
+        # в обеих темах (forest_light и forest_dark).
         colors = {
             "bg_secondary": self._theme.get("bg_secondary"),
             "accent_brand": self._theme.get("accent_brand"),
+            "text_primary": self._theme.get("text_primary"),
         }
         self._ghost = GhostWindow(root, colors)
 
@@ -378,8 +393,13 @@ class DragController:
         return f"#{r:02x}{g:02x}{b:02x}"
 
     def _on_theme_change(self, palette: dict) -> None:
+        """Live-update ghost label: fg_color + text_color (Phase F)."""
         try:
-            self._ghost._label.configure(
-                fg_color=palette.get("bg_secondary", "#EDE6D9"))
+            bg_sec = palette.get("bg_secondary")
+            text_primary = palette.get("text_primary")
+            if bg_sec:
+                self._ghost._label.configure(fg_color=bg_sec)
+            if text_primary:
+                self._ghost._label.configure(text_color=text_primary)
         except Exception:
             pass
