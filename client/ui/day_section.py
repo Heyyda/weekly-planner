@@ -24,6 +24,7 @@ import customtkinter as ctk
 
 from client.core.models import Task
 from shared.parse_input import parse_quick_input
+from client.ui.color_tween import ColorTween
 from client.ui.task_edit_card import TaskEditCard
 from client.ui.task_widget import TaskWidget
 from client.ui.themes import FONTS, ThemeManager
@@ -134,6 +135,12 @@ class DaySection:
 
     def destroy(self) -> None:
         self._destroyed = True
+        # Phase G: cancel in-flight hover tween на plus-btn.
+        if self._plus_btn is not None:
+            try:
+                ColorTween.cancel_all(self._plus_btn)
+            except Exception:
+                pass
         # Phase D: tear down edit card first если открыта.
         if self._edit_card is not None:
             try:
@@ -320,8 +327,10 @@ class DaySection:
         )
         self._plus_btn.pack(side="left")
         self._plus_btn.bind("<Button-1>", lambda e: self._show_inline_add())
-        self._plus_btn.bind("<Enter>", lambda e: self._plus_btn.configure(text_color=self._theme.get("accent_brand")))
-        self._plus_btn.bind("<Leave>", lambda e: self._plus_btn.configure(text_color=self._theme.get("text_tertiary")))
+        # Phase G: hover-tween на plus-btn (text_tertiary → accent_brand, 150ms).
+        self._plus_last_color: str = self._theme.get("text_tertiary")
+        self._plus_btn.bind("<Enter>", lambda e: self._tween_plus(self._theme.get("accent_brand")))
+        self._plus_btn.bind("<Leave>", lambda e: self._tween_plus(self._theme.get("text_tertiary")))
 
         # Body frame — hidden until tasks exist or inline-add opened
         self._body_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
@@ -336,6 +345,24 @@ class DaySection:
             corner_radius=0,
         )
         self._divider.pack(side="bottom", fill="x", padx=0, pady=0)
+
+    def _tween_plus(self, target_hex: str) -> None:
+        """Phase G: плавный ColorTween на plus-btn text_color."""
+        if self._destroyed or self._plus_btn is None or not self._plus_btn.winfo_exists():
+            return
+        current = self._plus_last_color
+        self._plus_last_color = target_hex
+        try:
+            ColorTween.tween(
+                self._plus_btn, "text_color", current, target_hex,
+                duration_ms=150, easing="ease-out",
+            )
+        except Exception as exc:
+            logger.debug("plus-btn tween failed: %s", exc)
+            try:
+                self._plus_btn.configure(text_color=target_hex)
+            except tk.TclError:
+                pass
 
     def _update_body_visibility(self) -> None:
         """Пустой день + no inline-add + no edit-card → body скрыт."""
@@ -480,8 +507,16 @@ class DaySection:
             except tk.TclError:
                 pass
         if self._plus_btn is not None and self._plus_btn.winfo_exists():
+            # Phase G: cancel in-flight tween + установить baseline под новую тему.
             try:
-                self._plus_btn.configure(text_color=palette.get("text_tertiary"))
+                ColorTween.cancel(self._plus_btn, "text_color")
+            except Exception:
+                pass
+            new_tertiary = palette.get("text_tertiary") or self._theme.get("text_tertiary")
+            if hasattr(self, "_plus_last_color"):
+                self._plus_last_color = new_tertiary
+            try:
+                self._plus_btn.configure(text_color=new_tertiary)
             except tk.TclError:
                 pass
         # Forest Phase B: divider цвета bg_tertiary обновляется при смене темы.

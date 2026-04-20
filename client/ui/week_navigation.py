@@ -20,6 +20,7 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from shared.parse_input import format_date_range_ru
+from client.ui.color_tween import ColorTween
 from client.ui.themes import FONTS, ThemeManager
 
 logger = logging.getLogger(__name__)
@@ -153,6 +154,13 @@ class WeekNavigation:
 
     def destroy(self) -> None:
         self._destroyed = True
+        # Phase G: отменить in-flight hover-твины перед destroy.
+        for btn in (self._prev_btn, self._next_btn, self._today_btn):
+            if btn is not None:
+                try:
+                    ColorTween.cancel_all(btn)
+                except Exception:
+                    pass
         try:
             if self._header_frame is not None:
                 self._header_frame.destroy()
@@ -241,6 +249,68 @@ class WeekNavigation:
                 child.bind("<Button-1>", lambda e: self.today())
             except tk.TclError:
                 pass
+
+        # Forest Phase G: hover-tween на стрелки (text_color dim→brand)
+        # и на "Сегодня" (text_secondary→accent_brand). 150ms ease-out.
+        self._install_hover_tweens()
+
+    # ---- Phase G: hover color tweens ----
+
+    TWEEN_MS = 150
+    TWEEN_EASING = "ease-out"
+
+    def _install_hover_tweens(self) -> None:
+        """Навесить <Enter>/<Leave> на prev/next/today с ColorTween на text_color.
+        Работает параллельно с CTk-builtin hover_color (он меняет fg_color фона)."""
+        text_tertiary = self._theme.get("text_tertiary")
+        text_secondary = self._theme.get("text_secondary")
+        accent_brand = self._theme.get("accent_brand")
+
+        # Последние применённые цвета — нужны как from_hex для ColorTween.
+        self._btn_last_color: dict[int, str] = {}
+
+        def install(btn, dim_color, active_color):
+            if btn is None:
+                return
+            self._btn_last_color[id(btn)] = dim_color
+
+            def on_enter(_e, b=btn, a=active_color):
+                if self._destroyed or not b.winfo_exists():
+                    return
+                key = id(b)
+                current = self._btn_last_color.get(key, a)
+                self._btn_last_color[key] = a
+                try:
+                    ColorTween.tween(
+                        b, "text_color", current, a,
+                        duration_ms=self.TWEEN_MS, easing=self.TWEEN_EASING,
+                    )
+                except Exception as exc:
+                    logger.debug("arrow tween enter: %s", exc)
+
+            def on_leave(_e, b=btn, d=dim_color):
+                if self._destroyed or not b.winfo_exists():
+                    return
+                key = id(b)
+                current = self._btn_last_color.get(key, d)
+                self._btn_last_color[key] = d
+                try:
+                    ColorTween.tween(
+                        b, "text_color", current, d,
+                        duration_ms=self.TWEEN_MS, easing=self.TWEEN_EASING,
+                    )
+                except Exception as exc:
+                    logger.debug("arrow tween leave: %s", exc)
+
+            try:
+                btn.bind("<Enter>", on_enter, add="+")
+                btn.bind("<Leave>", on_leave, add="+")
+            except tk.TclError:
+                pass
+
+        install(self._prev_btn, text_tertiary, accent_brand)
+        install(self._next_btn, text_tertiary, accent_brand)
+        install(self._today_btn, text_secondary, accent_brand)
 
     def _bind_keyboard(self) -> None:
         """D-30: Ctrl+Left/Right/T."""
@@ -342,5 +412,20 @@ class WeekNavigation:
                 and self._archive_return_label.winfo_exists()
             ):
                 self._archive_return_label.configure(text_color=text_secondary)
+            # Phase G: обновить baseline _btn_last_color под новую тему,
+            # иначе tween стартует из устаревшего hex-а старой палитры.
+            if hasattr(self, "_btn_last_color"):
+                for btn, dim in (
+                    (self._prev_btn, text_tertiary),
+                    (self._next_btn, text_tertiary),
+                    (self._today_btn, text_secondary),
+                ):
+                    if btn is None:
+                        continue
+                    try:
+                        ColorTween.cancel(btn, "text_color")
+                    except Exception:
+                        pass
+                    self._btn_last_color[id(btn)] = dim
         except tk.TclError:
             pass

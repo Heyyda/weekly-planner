@@ -6,6 +6,12 @@
 - Компактный padding (5-6 px)
 - Rounded corners r=10
 - Overdue state: ярко-красный checkbox border + текст
+
+Forest Phase G (260421-2a1):
+- Hover на иконки ✎ / 🗑 через ColorTween (150ms ease-out) вместо мгновенного
+  configure(text_color=...). Отслеживаем `_icon_last_color[btn]` чтобы знать
+  from_hex для следующего tween (cget на CTkLabel может вернуть tuple вместо
+  hex — опираемся на собственный трекинг).
 """
 from __future__ import annotations
 
@@ -17,11 +23,16 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from client.core.models import Task
+from client.ui.color_tween import ColorTween
 from client.ui.themes import FONTS, ThemeManager
 
 logger = logging.getLogger(__name__)
 
 VALID_STYLES = {"card", "line", "minimal"}
+
+# Phase G: стандартная длительность hover-tween по всему приложению.
+ICON_TWEEN_MS = 150
+ICON_TWEEN_EASING = "ease-out"
 
 
 class TaskWidget:
@@ -62,6 +73,12 @@ class TaskWidget:
         self._body_frame: Optional[ctk.CTkFrame] = None
         self._row: Optional[ctk.CTkFrame] = None
 
+        # Phase G: трекинг последнего применённого text_color для ColorTween.
+        # CTkLabel.cget("text_color") в некоторых версиях CTk возвращает tuple
+        # (light_color, dark_color), а не hex — ColorTween работает только с
+        # hex, поэтому помним сами.
+        self._icon_last_color: dict[int, str] = {}
+
         fg = self._bg_color()
         self.frame = ctk.CTkFrame(
             parent,
@@ -92,6 +109,13 @@ class TaskWidget:
 
     def destroy(self) -> None:
         self._destroyed = True
+        # Phase G: отменить in-flight hover-твины на наших иконках перед destroy.
+        for btn in (self._edit_btn, self._del_btn):
+            if btn is not None:
+                try:
+                    ColorTween.cancel_all(btn)
+                except Exception:
+                    pass
         try:
             self.frame.destroy()
         except Exception as exc:
@@ -149,25 +173,29 @@ class TaskWidget:
         icons_frame = ctk.CTkFrame(self._row, fg_color="transparent")
         icons_frame.pack(side="right", padx=(6, 0))
 
+        tertiary = self._theme.get("text_tertiary")
+
         self._edit_btn = ctk.CTkLabel(
             icons_frame, text="✎", width=18, cursor="hand2",
             font=(FONTS["body"][0], 16, "normal"),
-            text_color=self._theme.get("text_tertiary"),
+            text_color=tertiary,
         )
         self._edit_btn.pack(side="left", padx=(0, self.ICON_PAD))
         self._edit_btn.bind("<Button-1>", lambda e: self._on_edit(self._task.id))
         self._edit_btn.bind("<Enter>", lambda e: self._icon_hover(self._edit_btn, True))
         self._edit_btn.bind("<Leave>", lambda e: self._icon_hover(self._edit_btn, False))
+        self._icon_last_color[id(self._edit_btn)] = tertiary
 
         self._del_btn = ctk.CTkLabel(
             icons_frame, text="🗑", width=18, cursor="hand2",
             font=(FONTS["body"][0], 14, "normal"),
-            text_color=self._theme.get("text_tertiary"),
+            text_color=tertiary,
         )
         self._del_btn.pack(side="left")
         self._del_btn.bind("<Button-1>", lambda e: self._on_delete(self._task.id))
         self._del_btn.bind("<Enter>", lambda e: self._icon_hover(self._del_btn, True))
         self._del_btn.bind("<Leave>", lambda e: self._icon_hover(self._del_btn, False))
+        self._icon_last_color[id(self._del_btn)] = tertiary
 
         # Hover on row — раскрашиваем иконки (они ВСЕГДА видны, но темнее когда no hover)
         for w in (self.frame, self._row, self._body_frame, self._text_label, self._time_label):
@@ -299,35 +327,51 @@ class TaskWidget:
         self._refresh_icon_visibility()
 
     def _refresh_icon_visibility(self) -> None:
-        color = self._theme.get("text_secondary") if self._hover else self._theme.get("text_tertiary")
+        """Phase G: плавный tween icon color вместо мгновенного configure."""
+        target = self._theme.get("text_secondary") if self._hover else self._theme.get("text_tertiary")
         for btn in (self._edit_btn, self._del_btn):
-            if btn is not None and btn.winfo_exists():
-                try:
-                    btn.configure(text_color=color)
-                except tk.TclError:
-                    pass
+            if btn is None or not btn.winfo_exists():
+                continue
+            self._tween_icon(btn, target)
 
     def _icon_hover(self, btn: ctk.CTkLabel, entering: bool) -> None:
-        if btn is None or not btn.winfo_exists():
+        """Phase G: hover на конкретную иконку — tween к brand/overdue/dim-цвету."""
+        if self._destroyed or btn is None or not btn.winfo_exists():
             return
+        if entering:
+            # Forest Phase B: hover на 🗑 → accent_overdue (clay),
+            # на ✎ (и прочих) → accent_brand (forest). Семантика «delete = красный».
+            target = (
+                self._theme.get("accent_overdue")
+                if btn is self._del_btn
+                else self._theme.get("accent_brand")
+            )
+        else:
+            target = (
+                self._theme.get("text_secondary")
+                if self._hover
+                else self._theme.get("text_tertiary")
+            )
+        self._tween_icon(btn, target)
+
+    def _tween_icon(self, btn: ctk.CTkLabel, target_hex: str) -> None:
+        """Общий helper: ColorTween на text_color c учётом _icon_last_color."""
+        if self._destroyed or btn is None or not btn.winfo_exists():
+            return
+        key = id(btn)
+        current = self._icon_last_color.get(key, target_hex)
+        self._icon_last_color[key] = target_hex
         try:
-            if entering:
-                # Forest Phase B: hover на 🗑 → accent_overdue (clay),
-                # на ✎ (и прочих) → accent_brand (forest). Семантика «delete = красный».
-                color = (
-                    self._theme.get("accent_overdue")
-                    if btn is self._del_btn
-                    else self._theme.get("accent_brand")
-                )
-            else:
-                color = (
-                    self._theme.get("text_secondary")
-                    if self._hover
-                    else self._theme.get("text_tertiary")
-                )
-            btn.configure(text_color=color)
-        except tk.TclError:
-            pass
+            ColorTween.tween(
+                btn, "text_color", current, target_hex,
+                duration_ms=ICON_TWEEN_MS, easing=ICON_TWEEN_EASING,
+            )
+        except Exception as exc:
+            logger.debug("icon tween failed: %s", exc)
+            try:
+                btn.configure(text_color=target_hex)
+            except tk.TclError:
+                pass
 
     # ---- Theme ----
 
@@ -342,7 +386,25 @@ class TaskWidget:
             self._update_text_decoration()
         self._render_checkbox()
         self._update_time_label()
-        self._refresh_icon_visibility()
+        # Phase G: при смене темы сбрасываем _icon_last_color на новый tertiary
+        # и перекрашиваем иконки мгновенно (тема-switch — не анимируемая операция).
+        new_tertiary = palette.get("text_tertiary") or self._theme.get("text_tertiary")
+        for btn in (self._edit_btn, self._del_btn):
+            if btn is None or not btn.winfo_exists():
+                continue
+            try:
+                ColorTween.cancel(btn, "text_color")
+            except Exception:
+                pass
+            self._icon_last_color[id(btn)] = (
+                palette.get("text_secondary") if self._hover else new_tertiary
+            ) or new_tertiary
+            try:
+                btn.configure(
+                    text_color=palette.get("text_secondary") if self._hover else new_tertiary
+                )
+            except tk.TclError:
+                pass
 
     @staticmethod
     def _extract_hhmm(value: str) -> str:

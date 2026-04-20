@@ -41,6 +41,7 @@ from client.ui.day_section import DaySection
 from client.ui.drag_controller import DragController, DropZone
 from client.ui.edit_dialog import EditDialog
 from client.ui.settings import SettingsStore, UISettings
+from client.ui.color_tween import ColorTween
 from client.ui.themes import FONTS, ThemeManager
 from client.ui.undo_toast import UndoToastManager
 from client.ui.week_navigation import (
@@ -70,6 +71,12 @@ class MainWindow:
     # в отличие от DWM Win11-only API. Radius 12px — современный Forest-look.
     WINDOW_CORNER_RADIUS = 12
     RGN_REAPPLY_DEBOUNCE_MS = 50    # Дебаунс re-apply региона при resize
+
+    # Phase G: DWM drop-shadow — после SetWindowRgn ждём 50ms и вызываем
+    # DwmExtendFrameIntoClientArea с MARGINS(0,0,0,1). Win10/11 DWM требует
+    # "extended frame" >=1px для показа системной тени под frameless окном.
+    DWM_SHADOW_DELAY_MS = 50
+    CLOSE_BTN_TWEEN_MS = 150
 
     def __init__(
         self,
@@ -183,6 +190,12 @@ class MainWindow:
             pass
 
     def destroy(self) -> None:
+        # Phase G: отменить in-flight close-btn tween перед teardown.
+        if self._title_close_btn is not None:
+            try:
+                ColorTween.cancel_all(self._title_close_btn)
+            except Exception:
+                pass
         if self._drag_controller is not None:
             try:
                 self._drag_controller.destroy()
@@ -621,6 +634,14 @@ class MainWindow:
             )
         except Exception as exc:
             logger.debug("SetWindowRgn failed (non-Windows?): %s", exc)
+        # Phase G: после SetWindowRgn ждём DWM_SHADOW_DELAY_MS и включаем
+        # системную drop-shadow. Планируется на КАЖДЫЙ re-apply региона
+        # (включая debounced resize) — DWM трактует recompute margins как no-op
+        # если hwnd уже имеет extended frame.
+        try:
+            self._window.after(self.DWM_SHADOW_DELAY_MS, self._apply_dwm_shadow)
+        except tk.TclError:
+            pass
 
     def _build_title_bar(self, parent: ctk.CTkFrame) -> None:
         """Кастомная шапка 28px: 3px forest-полоса, заголовок 'Еженедельник', ✕.
@@ -659,20 +680,15 @@ class MainWindow:
         )
         self._title_close_btn.pack(side="right")
         self._title_close_btn.bind("<Button-1>", lambda e: self._on_close())
-        # Hover: destructive-clay + bg_secondary background
+        # Phase G: hover — ColorTween на text_color (tertiary -> accent_overdue).
+        # fg_color остаётся instant — CTkLabel.fg_color с "transparent"/hex смесями
+        # tween'ить нельзя (transparent не hex). 150ms ease-out.
+        self._close_btn_last_color: str = palette_close
         self._title_close_btn.bind(
-            "<Enter>",
-            lambda e: self._title_close_btn.configure(
-                text_color=self._theme.get("accent_overdue"),
-                fg_color=self._theme.get("bg_secondary"),
-            ),
+            "<Enter>", lambda e: self._on_close_hover(True),
         )
         self._title_close_btn.bind(
-            "<Leave>",
-            lambda e: self._title_close_btn.configure(
-                text_color=self._theme.get("text_tertiary"),
-                fg_color="transparent",
-            ),
+            "<Leave>", lambda e: self._on_close_hover(False),
         )
 
         # Заголовок (анкор left с отступом 10px от accent strip)
@@ -717,3 +733,69 @@ class MainWindow:
     def _on_title_drag_end(self, event) -> None:
         """Persist позицию через SettingsStore — тот же путь что _save_window_state."""
         self._save_window_state()
+
+    # ---- Phase G: close button hover tween ----
+
+    def _on_close_hover(self, entering: bool) -> None:
+        """ColorTween на text_color + мгновенный swap fg_color (transparent не hex)."""
+        btn = self._title_close_btn
+        if btn is None or not btn.winfo_exists():
+            return
+        if entering:
+            target_text = self._theme.get("accent_overdue")
+            target_fg = self._theme.get("bg_secondary")
+        else:
+            target_text = self._theme.get("text_tertiary")
+            target_fg = "transparent"
+        current = getattr(self, "_close_btn_last_color", target_text)
+        self._close_btn_last_color = target_text
+        try:
+            ColorTween.tween(
+                btn, "text_color", current, target_text,
+                duration_ms=self.CLOSE_BTN_TWEEN_MS, easing="ease-out",
+            )
+        except Exception as exc:
+            logger.debug("close-btn tween failed: %s", exc)
+            try:
+                btn.configure(text_color=target_text)
+            except tk.TclError:
+                pass
+        # fg_color — мгновенно (transparent <-> hex несовместимы с RGB-tween).
+        try:
+            btn.configure(fg_color=target_fg)
+        except tk.TclError:
+            pass
+
+    # ---- Phase G: DWM drop shadow ----
+
+    def _apply_dwm_shadow(self) -> None:
+        """Win10/11: DwmExtendFrameIntoClientArea(MARGINS(0,0,0,1)) -> системная
+        тень под frameless-окном. Работает когда DWM composition активен
+        (на Win7/Win8 без Aero — silent fallback).
+
+        Порядок вызовов строго:
+            overrideredirect(True) -> SetWindowRgn(rounded) -> DwmExtendFrameIntoClientArea
+
+        MARGINS(0,0,0,1): 1px "extended frame" снизу — минимум чтобы DWM показал
+        тень, не ломая визуальную высоту контента.
+        """
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
+
+            class _MARGINS(ctypes.Structure):
+                _fields_ = [
+                    ("cxLeftWidth", ctypes.c_int),
+                    ("cxRightWidth", ctypes.c_int),
+                    ("cyTopHeight", ctypes.c_int),
+                    ("cyBottomHeight", ctypes.c_int),
+                ]
+
+            margins = _MARGINS(0, 0, 0, 1)
+            hr = ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(
+                hwnd, ctypes.byref(margins),
+            )
+            logger.debug("DwmExtendFrameIntoClientArea -> hr=%s", hr)
+        except Exception as exc:
+            # DWM composition может быть отключен (Classic theme) или dwmapi.dll
+            # недоступен (не-Windows) — тихо live-без-тени.
+            logger.debug("DWM shadow failed (non-Windows / no DWM): %s", exc)

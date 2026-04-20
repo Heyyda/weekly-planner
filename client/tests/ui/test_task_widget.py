@@ -254,17 +254,39 @@ def test_done_checkmark_uses_bg_primary(tw_deps):
     w.destroy()
 
 
+def _pump_tween(root, btn, expected_hex: str, timeout_s: float = 1.5) -> str:
+    """Phase G: прокрутить event-loop пока ColorTween не доведёт btn.text_color
+    до expected_hex. Возвращает финальный cget значение."""
+    import time
+    deadline = time.monotonic() + timeout_s
+    last = ""
+    while time.monotonic() < deadline:
+        root.update()
+        try:
+            last = btn.cget("text_color")
+        except Exception:
+            last = ""
+        if str(last).lower() == expected_hex.lower():
+            return last
+    return last
+
+
 def test_delete_icon_hover_uses_accent_overdue(tw_deps):
-    """Forest Phase B: hover на 🗑 красит иконку в accent_overdue (clay)."""
+    """Forest Phase B: hover на 🗑 красит иконку в accent_overdue (clay).
+    Phase G: цвет достигается через ColorTween (~150ms), pump'им event-loop."""
     w = _make_widget(tw_deps)
+    target = tw_deps["theme"].get("accent_overdue")
     w._icon_hover(w._del_btn, entering=True)
-    assert w._del_btn.cget("text_color") == tw_deps["theme"].get("accent_overdue")
+    final = _pump_tween(tw_deps["root"], w._del_btn, target)
+    assert str(final).lower() == target.lower()
     w.destroy()
 
 
 def test_edit_icon_hover_still_uses_accent_brand(tw_deps):
-    """Forest Phase B: hover на ✎ остаётся accent_brand (forest) — только delete меняется."""
+    """Forest Phase B: hover на ✎ → accent_brand (forest). Phase G: через tween."""
     w = _make_widget(tw_deps)
+    target = tw_deps["theme"].get("accent_brand")
     w._icon_hover(w._edit_btn, entering=True)
-    assert w._edit_btn.cget("text_color") == tw_deps["theme"].get("accent_brand")
+    final = _pump_tween(tw_deps["root"], w._edit_btn, target)
+    assert str(final).lower() == target.lower()
     w.destroy()
