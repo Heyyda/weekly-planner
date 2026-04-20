@@ -2,7 +2,12 @@
 UpdateBanner — уведомление о доступном обновлении.
 
 Показывается через app._show_update_banner когда check() находит новую версию.
-CTkToplevel сверху-справа, без рамки, с одной кнопкой "Обновить".
+CTkToplevel сверху-справа, без рамки, с двумя кнопками ("Позже" ghost + "Обновить" primary).
+
+Forest Phase E (260421-1jo):
+  Обе кнопки теперь через palette keys (accent_brand forest primary, ghost-стиль
+  secondary). Banner фон — bg_primary с 1px border по bg_tertiary. Подписка на
+  ThemeManager позволяет live-switching тем пока banner открыт.
 """
 from __future__ import annotations
 
@@ -43,6 +48,7 @@ class UpdateBanner:
         self._download_url = download_url
         self._sha256 = sha256
         self._downloading = False
+        self._destroyed = False
 
         self._banner = ctk.CTkToplevel(root)
         self._banner.withdraw()
@@ -53,11 +59,22 @@ class UpdateBanner:
             pass
         self._banner.geometry(f"{self.WIDTH}x{self.HEIGHT}")
 
-        bg = self._theme.get("bg_secondary")
+        # Forest: banner background = bg_primary (как диалог), 1px border через bg_tertiary
+        bg_primary = self._theme.get("bg_primary")
+        bg_tertiary = self._theme.get("bg_tertiary")
         text_primary = self._theme.get("text_primary")
+        text_secondary = self._theme.get("text_secondary")
+        text_tertiary = self._theme.get("text_tertiary")
         accent = self._theme.get("accent_brand")
+        accent_light = self._theme.get("accent_brand_light")
 
-        self._frame = ctk.CTkFrame(self._banner, corner_radius=10, fg_color=bg)
+        self._frame = ctk.CTkFrame(
+            self._banner,
+            corner_radius=10,
+            fg_color=bg_primary,
+            border_width=1,
+            border_color=bg_tertiary,
+        )
         self._frame.pack(fill="both", expand=True, padx=2, pady=2)
 
         content = ctk.CTkFrame(self._frame, fg_color="transparent")
@@ -71,29 +88,77 @@ class UpdateBanner:
 
         self._status = ctk.CTkLabel(
             content, text=f"Текущая {self._updater.current_version}",
-            text_color=text_primary, font=FONTS["caption"], anchor="w",
+            text_color=text_secondary, font=FONTS["caption"], anchor="w",
         )
         self._status.pack(fill="x", pady=(0, 6))
 
         btn_row = ctk.CTkFrame(content, fg_color="transparent")
         btn_row.pack(fill="x")
 
+        # "Позже" — ghost: transparent fill + border, secondary text
         self._dismiss_btn = ctk.CTkButton(
             btn_row, text="Позже", width=80, height=28,
-            fg_color="transparent", border_width=1,
-            text_color=text_primary, hover_color=bg,
+            fg_color="transparent",
+            border_width=1,
+            border_color=text_tertiary,
+            text_color=text_secondary,
+            hover_color=bg_tertiary,
+            font=FONTS["body"],
             command=self._dismiss,
         )
         self._dismiss_btn.pack(side="left")
 
+        # "Обновить" — forest primary: accent_brand fill, cream text (bg_primary)
         self._update_btn = ctk.CTkButton(
             btn_row, text="Обновить", width=140, height=28,
-            fg_color=accent, command=self._on_update_click,
+            fg_color=accent,
+            hover_color=accent_light,
+            text_color=bg_primary,
+            font=FONTS["body_m"],
+            command=self._on_update_click,
         )
         self._update_btn.pack(side="right")
 
+        # Live theme switching
+        try:
+            self._theme.subscribe(self._apply_theme)
+        except Exception as exc:
+            logger.debug("UpdateBanner theme subscribe: %s", exc)
+
         # Reposition top-right (после того как root узнал размер экрана)
         self._banner.after(100, self._reposition_and_show)
+
+    def _apply_theme(self, palette: dict) -> None:
+        """Live-update всех элементов banner при смене темы."""
+        if self._destroyed:
+            return
+        bg_primary = palette.get("bg_primary")
+        bg_tertiary = palette.get("bg_tertiary")
+        text_primary = palette.get("text_primary")
+        text_secondary = palette.get("text_secondary")
+        text_tertiary = palette.get("text_tertiary")
+        accent = palette.get("accent_brand")
+        accent_light = palette.get("accent_brand_light")
+        try:
+            if self._frame.winfo_exists():
+                self._frame.configure(fg_color=bg_primary, border_color=bg_tertiary)
+        except tk.TclError:
+            return
+        try:
+            self._title.configure(text_color=text_primary)
+            self._status.configure(text_color=text_secondary)
+            self._dismiss_btn.configure(
+                border_color=text_tertiary,
+                text_color=text_secondary,
+                hover_color=bg_tertiary,
+            )
+            self._update_btn.configure(
+                fg_color=accent,
+                hover_color=accent_light,
+                text_color=bg_primary,
+            )
+        except tk.TclError:
+            pass
 
     def _reposition_and_show(self) -> None:
         try:
@@ -158,12 +223,14 @@ class UpdateBanner:
         # Выходим — bat перехватит, заменит, перезапустит
         logger.info("Exiting for update bat to take over")
         try:
+            self._destroyed = True
             self._banner.destroy()
         except tk.TclError:
             pass
         self._root.after(500, lambda: sys.exit(0))
 
     def _dismiss(self) -> None:
+        self._destroyed = True
         try:
             self._banner.destroy()
         except tk.TclError:

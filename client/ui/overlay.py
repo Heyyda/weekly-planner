@@ -8,6 +8,12 @@ OverlayManager — draggable square 56×56 на рабочем столе.
   OVR-04: single-click → on_click callback
   OVR-06: set_always_on_top — toggle с hook для main window
 
+Forest Phase E (260421-1jo):
+  refresh_image теперь передаёт текущую палитру в render_overlay_image.
+  OverlayManager подписан на theme_manager → re-render на смене темы.
+  Последние параметры рендера хранятся в instance vars (_last_state, …)
+  чтобы _on_theme_changed мог перерисовать без вызова со стороны app.
+
 Критические pitfall'ы:
   PITFALL 1: overrideredirect(True) через after(100, ...) — Win11 DWM timing
   PITFALL 4: self._tk_image хранится в instance var (Tkinter GC)
@@ -30,7 +36,7 @@ from PIL import ImageTk
 
 from client.ui.icon_compose import render_overlay_image
 from client.ui.settings import SettingsStore, UISettings
-from client.ui.themes import ThemeManager
+from client.ui.themes import PALETTES, ThemeManager
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +109,12 @@ class OverlayManager:
         self._tk_image: Optional[ImageTk.PhotoImage] = None
         self._canvas_item_id: Optional[int] = None
 
+        # Forest Phase E: last render state — нужен для re-render на смене темы
+        self._last_state: str = "default"
+        self._last_task_count: int = 0
+        self._last_overdue_count: int = 0
+        self._last_pulse_t: float = 0.0
+
         # Создание окна
         self._overlay = ctk.CTkToplevel(root)
         self._overlay.withdraw()
@@ -118,6 +130,12 @@ class OverlayManager:
             bg="#000000",  # временный — прозрачность через transparentcolor
         )
         self._canvas.pack(fill="both", expand=True)
+
+        # Forest Phase E: подписка на смену темы — overlay перерисуется новым palette
+        try:
+            self._theme.subscribe(self._on_theme_changed)
+        except Exception as exc:
+            logger.debug("theme subscribe failed: %s", exc)
 
         # PITFALL 1: overrideredirect строго через after(INIT_DELAY_MS, ...)
         self._overlay.after(self.INIT_DELAY_MS, self._init_overlay_style)
@@ -186,13 +204,32 @@ class OverlayManager:
 
     def refresh_image(self, state: str, task_count: int,
                       overdue_count: int, pulse_t: float = 0.0) -> None:
-        """Перерисовать Pillow image → ImageTk → Canvas (PITFALL 4: сохранить ref)."""
+        """Перерисовать Pillow image → ImageTk → Canvas (PITFALL 4: сохранить ref).
+
+        Forest Phase E: текущая палитра (`ThemeManager.current` → PALETTES) пробрасывается
+        в render_overlay_image, чтобы плашка отрисовалась в Forest-флэте (или любой
+        другой активной теме). Last-render state сохраняется — на смене темы
+        _on_theme_changed вызовет refresh_image заново с теми же параметрами.
+        """
+        # Сохранить для re-render на смене темы
+        self._last_state = state
+        self._last_task_count = task_count
+        self._last_overdue_count = overdue_count
+        self._last_pulse_t = pulse_t
+
+        # Резолв текущей палитры через ThemeManager (избегаем доступа в render_overlay_image)
+        try:
+            palette = PALETTES.get(self._theme.current)
+        except Exception:
+            palette = None
+
         img = render_overlay_image(
             size=self.OVERLAY_SIZE,
             state=state,
             task_count=task_count,
             overdue_count=overdue_count,
             pulse_t=pulse_t,
+            palette=palette,
         )
         # PITFALL 4: сохранить ImageTk.PhotoImage в instance var — иначе GC удалит
         self._tk_image = ImageTk.PhotoImage(img)
@@ -202,6 +239,28 @@ class OverlayManager:
             )
         else:
             self._canvas.itemconfig(self._canvas_item_id, image=self._tk_image)
+
+    def _on_theme_changed(self, palette: dict) -> None:
+        """Callback от ThemeManager — перерисовать overlay с новой палитрой.
+
+        palette уже обновлена ThemeManager'ом до вызова; refresh_image сам
+        резолвит актуальный PALETTES[theme.current].
+        """
+        # Если canvas ещё не готов или overlay destroyed — тихо выходим
+        try:
+            if not self._canvas.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        try:
+            self.refresh_image(
+                state=self._last_state,
+                task_count=self._last_task_count,
+                overdue_count=self._last_overdue_count,
+                pulse_t=self._last_pulse_t,
+            )
+        except Exception as exc:
+            logger.debug("overlay re-render on theme change failed: %s", exc)
 
     def show(self) -> None:
         """Показать overlay окно."""

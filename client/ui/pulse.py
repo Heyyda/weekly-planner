@@ -3,14 +3,14 @@ PulseAnimator — 60fps driver для overlay pulse animation (OVR-05).
 
 Цикл per UI-SPEC §Overdue:
     2500ms total (PULSE_CYCLE_MS)
-    t = 0.0   → синий (начало цикла)
-    t = 0.5   → красный peak (середина)
-    t = 1.0   → синий (конец = начало следующего цикла, wrap)
+    t = 0.0   → normal overlay (начало цикла)
+    t = 0.5   → peak pulse intensity (середина)
+    t = 1.0   → normal overlay (конец = начало следующего цикла, wrap)
 
-Интерпретация в icon_compose.render_overlay_image:
-    pulse_t=0.0 → синий (#4EA1FF/#1E73E8)
-    pulse_t=0.5 → красный (#E85A5A/#C03535)
-    Внутри icon_compose используется triangle-wave: intensity = 1 - |2t - 1|
+Интерпретация в icon_compose.render_overlay_image (Forest Phase E):
+    Плашка — плоская, solid color из палитры. Pulse задаёт только
+    акцент badge при overdue (scale или intensity — в будущем).
+    Triangle-wave: intensity = 1 - |2t - 1|
 
 Критично: root.after() only (D-28). threading.Timer запрещён (PITFALL 2).
 Idempotent start/stop — guard против двойного after-цикла (120fps chaos).
@@ -62,7 +62,7 @@ class PulseAnimator:
         Args:
             root: CTk root (или любой Tk widget) — для вызова root.after().
             on_frame: callback(pulse_t: float) — вызывается каждый кадр.
-                pulse_t от 0.0 (синий) до 1.0 (синий через пик 0.5 красного).
+                pulse_t от 0.0 (normal) до 1.0 (normal через пик 0.5 intensity).
         """
         self._root = root
         self._on_frame = on_frame
@@ -95,7 +95,7 @@ class PulseAnimator:
         Остановить pulse-анимацию и вернуть overlay в синий (pulse_t=0.0).
 
         Отменяет pending after через after_cancel().
-        Вызывает on_frame(0.0) для сброса цвета — нет flicker при остановке.
+        Вызывает on_frame(0.0) для сброса состояния — нет flicker при остановке.
         Idempotent — вызов без предшествующего start() — no-op.
         """
         if not self._active:
@@ -107,12 +107,12 @@ class PulseAnimator:
             except Exception as exc:
                 logger.debug("after_cancel не удался (уже выполнен): %s", exc)
             self._after_id = None
-        # Сброс в синий — on_frame(0.0)
+        # Сброс в normal state — on_frame(0.0)
         try:
             self._on_frame(0.0)
         except Exception as exc:
             logger.error("on_frame(reset 0.0) ошибка: %s", exc)
-        logger.debug("PulseAnimator: остановлен, overlay сброшен в синий")
+        logger.debug("PulseAnimator: остановлен, overlay сброшен в normal state")
 
     def _tick(self) -> None:
         """
@@ -142,9 +142,9 @@ class PulseAnimator:
         Формула: (elapsed_ms % PULSE_CYCLE_MS) / PULSE_CYCLE_MS
 
         Примеры:
-            elapsed=0    → 0.0  (синий, начало)
-            elapsed=1250 → 0.5  (красный, пик)
-            elapsed=2500 → 0.0  (синий, wrap)
+            elapsed=0    → 0.0  (normal, начало)
+            elapsed=1250 → 0.5  (peak intensity, пик)
+            elapsed=2500 → 0.0  (normal, wrap)
             elapsed=3000 → 0.2  (3000 % 2500=500, 500/2500=0.2)
 
         Args:

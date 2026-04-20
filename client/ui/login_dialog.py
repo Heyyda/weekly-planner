@@ -7,6 +7,12 @@ LoginDialog — модальный диалог авторизации чере�
 
 Вызывается из WeeklyPlannerApp._setup() если нет saved token. Показывается через
 root.wait_window(dialog), поэтому _setup блокируется до завершения auth.
+
+Forest Phase E (260421-1jo):
+  Primary buttons ("Запросить код", "Войти") — forest fill (accent_brand) с
+  cream text (bg_primary). Back button — ghost. Error статус — clay через
+  palette["accent_overdue"] вместо хардкодного error-hex. Theme-subscription
+  для live-switching.
 """
 from __future__ import annotations
 
@@ -43,6 +49,8 @@ class LoginDialog:
 
         self._request_id: Optional[str] = None
         self._success: bool = False
+        self._destroyed = False
+        self._last_status_error: bool = False
         self._hostname = socket.gethostname()
 
         self._dialog = ctk.CTkToplevel(root)
@@ -65,6 +73,9 @@ class LoginDialog:
         self._code_entry: Optional[ctk.CTkEntry] = None
         self._status_label: Optional[ctk.CTkLabel] = None
         self._primary_btn: Optional[ctk.CTkButton] = None
+        self._back_btn: Optional[ctk.CTkButton] = None
+        self._title_label: Optional[ctk.CTkLabel] = None
+        self._desc_label: Optional[ctk.CTkLabel] = None
 
         self._build_username_step()
 
@@ -74,6 +85,12 @@ class LoginDialog:
         except Exception as exc:
             logger.debug("grab_set failed: %s", exc)
 
+        # Live theme switching
+        try:
+            self._theme.subscribe(self._apply_theme)
+        except Exception as exc:
+            logger.debug("LoginDialog theme subscribe: %s", exc)
+
     # ---- Public ----
 
     def wait(self) -> bool:
@@ -81,27 +98,58 @@ class LoginDialog:
         self._root.wait_window(self._dialog)
         return self._success
 
+    # ---- Forest styling helpers ----
+
+    def _style_primary_button(self, btn: ctk.CTkButton) -> None:
+        """Forest primary: accent_brand fill, cream text, accent_light hover."""
+        try:
+            btn.configure(
+                fg_color=self._theme.get("accent_brand"),
+                hover_color=self._theme.get("accent_brand_light"),
+                text_color=self._theme.get("bg_primary"),
+                font=FONTS["body_m"],
+            )
+        except tk.TclError:
+            pass
+
+    def _style_ghost_button(self, btn: ctk.CTkButton) -> None:
+        """Ghost: transparent fill + border text_tertiary, text_secondary colour."""
+        try:
+            btn.configure(
+                fg_color="transparent",
+                border_width=1,
+                border_color=self._theme.get("text_tertiary"),
+                text_color=self._theme.get("text_secondary"),
+                hover_color=self._theme.get("bg_tertiary"),
+                font=FONTS["body"],
+            )
+        except tk.TclError:
+            pass
+
     # ---- UI: Step 1 — username ----
 
     def _build_username_step(self) -> None:
         self._clear_content()
         bg = self._theme.get("bg_primary")
         text_primary = self._theme.get("text_primary")
+        text_secondary = self._theme.get("text_secondary")
 
         self._dialog.configure(fg_color=bg)
         self._content = ctk.CTkFrame(self._dialog, fg_color=bg, corner_radius=0)
         self._content.pack(fill="both", expand=True, padx=24, pady=20)
 
-        ctk.CTkLabel(
+        self._title_label = ctk.CTkLabel(
             self._content, text="Вход через Telegram",
             text_color=text_primary, font=FONTS["h1"],
-        ).pack(anchor="w", pady=(0, 4))
+        )
+        self._title_label.pack(anchor="w", pady=(0, 4))
 
-        ctk.CTkLabel(
+        self._desc_label = ctk.CTkLabel(
             self._content,
             text="Введи свой Telegram username — пришлём код в @Jazzways_bot",
-            text_color=text_primary, font=FONTS["caption"], wraplength=320, justify="left",
-        ).pack(anchor="w", pady=(0, 12))
+            text_color=text_secondary, font=FONTS["caption"], wraplength=320, justify="left",
+        )
+        self._desc_label.pack(anchor="w", pady=(0, 12))
 
         self._username_entry = ctk.CTkEntry(
             self._content, placeholder_text="username (без @)",
@@ -112,7 +160,7 @@ class LoginDialog:
         self._username_entry.focus_set()
 
         self._status_label = ctk.CTkLabel(
-            self._content, text="", text_color=text_primary, font=FONTS["caption"],
+            self._content, text="", text_color=text_secondary, font=FONTS["caption"],
         )
         self._status_label.pack(pady=(0, 8))
 
@@ -121,6 +169,8 @@ class LoginDialog:
             width=320, height=36, command=self._on_request_code,
         )
         self._primary_btn.pack()
+        self._style_primary_button(self._primary_btn)
+        self._back_btn = None
 
     # ---- UI: Step 2 — code ----
 
@@ -128,21 +178,24 @@ class LoginDialog:
         self._clear_content()
         bg = self._theme.get("bg_primary")
         text_primary = self._theme.get("text_primary")
+        text_secondary = self._theme.get("text_secondary")
 
         self._dialog.configure(fg_color=bg)
         self._content = ctk.CTkFrame(self._dialog, fg_color=bg, corner_radius=0)
         self._content.pack(fill="both", expand=True, padx=24, pady=20)
 
-        ctk.CTkLabel(
+        self._title_label = ctk.CTkLabel(
             self._content, text="Код из Telegram",
             text_color=text_primary, font=FONTS["h1"],
-        ).pack(anchor="w", pady=(0, 4))
+        )
+        self._title_label.pack(anchor="w", pady=(0, 4))
 
-        ctk.CTkLabel(
+        self._desc_label = ctk.CTkLabel(
             self._content,
             text="Зайди в чат с @Jazzways_bot — там 6-значный код",
-            text_color=text_primary, font=FONTS["caption"], wraplength=320, justify="left",
-        ).pack(anchor="w", pady=(0, 12))
+            text_color=text_secondary, font=FONTS["caption"], wraplength=320, justify="left",
+        )
+        self._desc_label.pack(anchor="w", pady=(0, 12))
 
         self._code_entry = ctk.CTkEntry(
             self._content, placeholder_text="123456",
@@ -153,25 +206,26 @@ class LoginDialog:
         self._code_entry.focus_set()
 
         self._status_label = ctk.CTkLabel(
-            self._content, text="", text_color=text_primary, font=FONTS["caption"],
+            self._content, text="", text_color=text_secondary, font=FONTS["caption"],
         )
         self._status_label.pack(pady=(0, 8))
 
         btn_row = ctk.CTkFrame(self._content, fg_color="transparent")
         btn_row.pack(fill="x")
 
-        ctk.CTkButton(
+        self._back_btn = ctk.CTkButton(
             btn_row, text="← Назад", width=100, height=36,
-            fg_color="transparent", border_width=1,
-            text_color=text_primary, hover_color=self._theme.get("bg_secondary"),
             command=self._build_username_step,
-        ).pack(side="left")
+        )
+        self._back_btn.pack(side="left")
+        self._style_ghost_button(self._back_btn)
 
         self._primary_btn = ctk.CTkButton(
             btn_row, text="Войти", width=210, height=36,
             command=self._on_verify_code,
         )
         self._primary_btn.pack(side="right")
+        self._style_primary_button(self._primary_btn)
 
     # ---- Handlers ----
 
@@ -235,9 +289,14 @@ class LoginDialog:
     # ---- Helpers ----
 
     def _set_status(self, text: str, error: bool = False) -> None:
+        """Error → accent_overdue (clay); success/info → accent_brand (forest).
+
+        Forest Phase E: старый error-hex удалён — цвета строго через палитру.
+        """
         if self._status_label is None:
             return
-        color = "#C94A4A" if error else self._theme.get("accent_brand")
+        self._last_status_error = error
+        color = self._theme.get("accent_overdue") if error else self._theme.get("accent_brand")
         try:
             self._status_label.configure(text=text, text_color=color)
         except tk.TclError:
@@ -247,6 +306,46 @@ class LoginDialog:
         if self._primary_btn is not None:
             try:
                 self._primary_btn.configure(state="disabled" if busy else "normal")
+            except tk.TclError:
+                pass
+
+    def _apply_theme(self, palette: dict) -> None:
+        """Live-update при смене темы — dialog, labels, buttons, status color."""
+        if self._destroyed:
+            return
+        bg = palette.get("bg_primary")
+        text_primary = palette.get("text_primary")
+        text_secondary = palette.get("text_secondary")
+        try:
+            self._dialog.configure(fg_color=bg)
+        except tk.TclError:
+            return
+        try:
+            if self._content is not None and self._content.winfo_exists():
+                self._content.configure(fg_color=bg)
+        except tk.TclError:
+            pass
+        try:
+            if self._title_label is not None and self._title_label.winfo_exists():
+                self._title_label.configure(text_color=text_primary)
+            if self._desc_label is not None and self._desc_label.winfo_exists():
+                self._desc_label.configure(text_color=text_secondary)
+        except tk.TclError:
+            pass
+        if self._primary_btn is not None:
+            self._style_primary_button(self._primary_btn)
+        if self._back_btn is not None:
+            self._style_ghost_button(self._back_btn)
+        # Refresh status color according to last error-state
+        if self._status_label is not None:
+            try:
+                if self._status_label.winfo_exists():
+                    color = (
+                        palette.get("accent_overdue")
+                        if self._last_status_error
+                        else palette.get("accent_brand")
+                    )
+                    self._status_label.configure(text_color=color)
             except tk.TclError:
                 pass
 
@@ -261,6 +360,9 @@ class LoginDialog:
         self._code_entry = None
         self._status_label = None
         self._primary_btn = None
+        self._back_btn = None
+        self._title_label = None
+        self._desc_label = None
 
     def _on_close(self) -> None:
         """Закрытие окна через крест — считаем как cancel."""
@@ -268,6 +370,7 @@ class LoginDialog:
         self._close_dialog()
 
     def _close_dialog(self) -> None:
+        self._destroyed = True
         try:
             self._dialog.grab_release()
         except tk.TclError:

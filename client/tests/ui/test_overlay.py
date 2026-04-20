@@ -274,3 +274,90 @@ def test_destroy_removes_overlay(overlay_deps):
         assert not overlay._overlay.winfo_exists()
     except Exception:
         pass  # teardown happened
+
+
+# ==================== Forest Phase E (260421-1jo) ====================
+
+def test_overlay_passes_palette_to_render_image(overlay_deps, monkeypatch):
+    """Forest Phase E: refresh_image передаёт palette=PALETTES[theme.current] в render_overlay_image."""
+    from client.ui.overlay import OverlayManager
+    from client.ui import overlay as overlay_module
+    from client.ui.themes import PALETTES
+
+    captured = {}
+
+    def _fake_render(**kwargs):
+        captured.update(kwargs)
+        # Вернуть простой image чтобы pipeline не упал
+        from PIL import Image
+        return Image.new("RGBA", (kwargs.get("size", 56), kwargs.get("size", 56)), (0, 0, 0, 0))
+
+    monkeypatch.setattr(overlay_module, "render_overlay_image", _fake_render)
+
+    overlay = OverlayManager(
+        overlay_deps["root"], overlay_deps["settings_store"],
+        overlay_deps["settings"], overlay_deps["theme"],
+    )
+    overlay_deps["root"].update()
+    overlay.refresh_image(state="default", task_count=2, overdue_count=0)
+
+    assert "palette" in captured, "refresh_image должен передавать palette kwarg"
+    # palette должна быть не None и содержать forest accent_brand (initial='forest_light' в PALETTES)
+    assert captured["palette"] is not None
+    # ThemeManager() default = forest_light (см. themes.py __init__)
+    expected = PALETTES[overlay_deps["theme"].current]
+    assert captured["palette"]["accent_brand"] == expected["accent_brand"]
+    overlay.destroy()
+
+
+def test_overlay_subscribes_to_theme_change(overlay_deps):
+    """Forest Phase E: OverlayManager регистрирует callback через theme_manager.subscribe."""
+    from client.ui.overlay import OverlayManager
+    from unittest.mock import MagicMock
+
+    # Обернуть subscribe чтобы отследить вызовы
+    original_subscribe = overlay_deps["theme"].subscribe
+    subscribe_spy = MagicMock(side_effect=original_subscribe)
+    overlay_deps["theme"].subscribe = subscribe_spy
+
+    overlay = OverlayManager(
+        overlay_deps["root"], overlay_deps["settings_store"],
+        overlay_deps["settings"], overlay_deps["theme"],
+    )
+    overlay_deps["root"].update()
+
+    assert subscribe_spy.call_count >= 1, "OverlayManager должен вызвать theme.subscribe хотя бы раз"
+    # Проверяем что переданный callback — метод _on_theme_changed
+    args, kwargs = subscribe_spy.call_args
+    cb = args[0] if args else kwargs.get("callback")
+    assert cb == overlay._on_theme_changed
+    overlay.destroy()
+
+
+def test_overlay_re_renders_on_theme_change(overlay_deps):
+    """Forest Phase E: смена темы триггерит _on_theme_changed → refresh_image с тем же state."""
+    from client.ui.overlay import OverlayManager
+
+    overlay = OverlayManager(
+        overlay_deps["root"], overlay_deps["settings_store"],
+        overlay_deps["settings"], overlay_deps["theme"],
+    )
+    overlay_deps["root"].update()
+
+    # Сначала настроим state
+    overlay.refresh_image(state="overdue", task_count=5, overdue_count=2, pulse_t=0.3)
+    assert overlay._last_state == "overdue"
+    assert overlay._last_task_count == 5
+    assert overlay._last_overdue_count == 2
+
+    first_tk = overlay._tk_image
+    # Симулируем смену темы
+    overlay_deps["theme"].set_theme("forest_dark")
+    overlay_deps["root"].update_idletasks()
+
+    # _tk_image должен обновиться (новый palette → новый rendered image)
+    assert overlay._tk_image is not None
+    # last_state сохранился между рендерами
+    assert overlay._last_state == "overdue"
+    assert overlay._last_task_count == 5
+    overlay.destroy()

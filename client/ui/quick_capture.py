@@ -6,6 +6,11 @@
 PITFALL 1: after(100) для overrideredirect
 PITFALL 3: focus-out через after(50) delay
 D-02: -toolwindow=1 hide from taskbar + edge-flip
+
+Forest Phase E (260421-1jo):
+  Все цвета — через palette keys (accent_brand, bg_secondary, text_primary,
+  text_tertiary, accent_overdue). Popup short-lived — theme subscription
+  не нужен: каждый show() читает актуальную палитру.
 """
 from __future__ import annotations
 
@@ -112,8 +117,12 @@ class QuickCapturePopup:
             pass
 
         accent = self._theme.get("accent_brand")
+        bg_secondary = self._theme.get("bg_secondary")
+        text_primary = self._theme.get("text_primary")
+        text_tertiary = self._theme.get("text_tertiary")
+
         frame = ctk.CTkFrame(
-            self._popup, fg_color=self._theme.get("bg_secondary"), corner_radius=0,
+            self._popup, fg_color=bg_secondary, corner_radius=0,
         )
         frame.pack(fill="both", expand=True)
 
@@ -124,8 +133,10 @@ class QuickCapturePopup:
         self._entry = ctk.CTkEntry(
             frame,
             placeholder_text="Новая задача на сегодня...",
+            placeholder_text_color=text_tertiary,
             border_width=0,
-            fg_color=self._theme.get("bg_secondary"),
+            fg_color=bg_secondary,
+            text_color=text_primary,
             font=FONTS["body"],
         )
         self._entry.pack(side="left", fill="both", expand=True, padx=(4, 4), pady=2)
@@ -170,7 +181,7 @@ class QuickCapturePopup:
             pass
 
     def _flash_empty_border(self) -> None:
-        """D-05: red border 300ms → restore."""
+        """D-05: clay border 300ms → restore. Clay = accent_overdue из текущей палитры."""
         if self._entry is None or not self._entry.winfo_exists():
             return
         accent_overdue = self._theme.get("accent_overdue")

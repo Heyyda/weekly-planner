@@ -4,6 +4,10 @@ Gmail-pattern undo-flow: "⟲ Задача удалена • Отменить" 
 Max 3 stacked vertically.
 
 CTkFrame + place() (НЕ CTkToplevel per research anti-pattern).
+
+Forest Phase E (260421-1jo):
+  _apply_theme теперь обновляет не только bg, но и accent (undo-label text_color
+  + bar_canvas bg). Палитра — forest-compatible (accent_brand = forest).
 """
 from __future__ import annotations
 
@@ -50,6 +54,7 @@ class UndoToastManager:
         self._queue: list[ToastEntry] = []
         self._frames: list[ctk.CTkFrame] = []
         self._canvases: list[tk.Canvas] = []
+        self._undo_labels: list[ctk.CTkLabel] = []
         self._start_ms_list: list[int] = []
 
         theme_manager.subscribe(self._apply_theme)
@@ -141,6 +146,7 @@ class UndoToastManager:
 
         self._frames.append(toast)
         self._canvases.append(bar_canvas)
+        self._undo_labels.append(undo_lbl)
 
         start_ms = int(time.monotonic() * 1000)
         self._root.after(
@@ -221,6 +227,8 @@ class UndoToastManager:
         frame = self._frames.pop(idx)
         if idx < len(self._canvases):
             self._canvases.pop(idx)
+        if idx < len(self._undo_labels):
+            self._undo_labels.pop(idx)
         if idx < len(self._start_ms_list):
             self._start_ms_list.pop(idx)
         try:
@@ -237,12 +245,26 @@ class UndoToastManager:
         return None
 
     def _apply_theme(self, palette: dict) -> None:
+        """Live-update всех живых тостов: bg, accent на undo-labels + canvas bars."""
         if self._destroyed:
             return
         bg = palette.get("bg_secondary")
+        accent = palette.get("accent_brand")
         for frame in self._frames:
             try:
                 if frame.winfo_exists():
                     frame.configure(fg_color=bg)
+            except tk.TclError:
+                pass
+        for lbl in self._undo_labels:
+            try:
+                if lbl.winfo_exists():
+                    lbl.configure(text_color=accent)
+            except tk.TclError:
+                pass
+        for canvas in self._canvases:
+            try:
+                if canvas.winfo_exists():
+                    canvas.configure(bg=accent)
             except tk.TclError:
                 pass
