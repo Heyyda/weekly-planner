@@ -1,4 +1,7 @@
-"""Unit-тесты ThemeManager (Plan 03-02)."""
+"""Unit-тесты ThemeManager (Plan 03-02).
+
+Phase C (260421-11w): добавлены тесты init_fonts fallback-резолва.
+"""
 import pytest
 from client.ui.themes import PALETTES, FONTS, ThemeManager
 
@@ -67,10 +70,87 @@ def test_forest_dark_palette_exact_hex_per_spec():
     assert p["accent_overdue"] == "#B87D6F"
 
 
-def test_fonts_has_segoe_and_cascadia():
-    # Hotfix 260421-0jb: Segoe UI (не Variable) — Win10 совместимость
+def test_fonts_default_names_before_init():
+    """До init_fonts(root) — модульные дефолты (Segoe UI + Cascadia Mono).
+
+    Реальный runtime-резолв проверяется в test_init_fonts_* ниже.
+    NB: порядок тестов в файле важен — если init_fonts уже вызывался
+    в предыдущих тестах (они восстанавливают Segoe UI / Cascadia Mono),
+    этот assert всё равно проходит.
+    """
     assert FONTS["body"][0] == "Segoe UI"
     assert FONTS["mono"][0] in ("Cascadia Code", "Cascadia Mono")
+
+
+def test_init_fonts_picks_fallback_when_families_empty(monkeypatch):
+    """init_fonts: если tkfont.families() пустой → sans→TkDefaultFont, mono→TkFixedFont."""
+    from client.ui import themes as themes_mod
+    monkeypatch.setattr(
+        "tkinter.font.families",
+        lambda root=None: (),
+        raising=False,
+    )
+    themes_mod.init_fonts(root=None)
+    assert themes_mod.FONTS["body"][0] == "TkDefaultFont"
+    assert themes_mod.FONTS["mono"][0] == "TkFixedFont"
+    # Проверить что размеры и веса не сломались
+    assert themes_mod.FONTS["body"][1] == 13
+    assert themes_mod.FONTS["h1"] == ("TkDefaultFont", 16, "bold")
+    assert themes_mod.FONTS["mono"][1] == 12
+    # Восстановить дефолты для последующих тестов
+    monkeypatch.setattr(
+        "tkinter.font.families",
+        lambda root=None: ("Segoe UI", "Cascadia Mono", "Arial", "Consolas"),
+        raising=False,
+    )
+    themes_mod.init_fonts(root=None)
+    assert themes_mod.FONTS["body"][0] == "Segoe UI"
+    assert themes_mod.FONTS["mono"][0] == "Cascadia Mono"
+
+
+def test_init_fonts_prefers_segoe_variable_when_available(monkeypatch):
+    """init_fonts: Segoe UI Variable выигрывает у Segoe UI (Win11-дефолт)."""
+    from client.ui import themes as themes_mod
+    monkeypatch.setattr(
+        "tkinter.font.families",
+        lambda root=None: ("Segoe UI Variable", "Segoe UI", "Consolas", "Arial"),
+        raising=False,
+    )
+    themes_mod.init_fonts(root=None)
+    assert themes_mod.FONTS["body"][0] == "Segoe UI Variable"
+    # Cascadia Mono нет — падаем на Consolas
+    assert themes_mod.FONTS["mono"][0] == "Consolas"
+    # Восстановить дефолты для остальных тестов
+    monkeypatch.setattr(
+        "tkinter.font.families",
+        lambda root=None: ("Segoe UI", "Cascadia Mono"),
+        raising=False,
+    )
+    themes_mod.init_fonts(root=None)
+
+
+def test_init_fonts_tolerates_tkfont_failure(monkeypatch):
+    """Если tkfont.families() падает — оставляем pre-init дефолты."""
+    from client.ui import themes as themes_mod
+    # Сначала резолвим к ожидаемым значениям
+    monkeypatch.setattr(
+        "tkinter.font.families",
+        lambda root=None: ("Segoe UI", "Cascadia Mono"),
+        raising=False,
+    )
+    themes_mod.init_fonts(root=None)
+    body_before = themes_mod.FONTS["body"]
+    mono_before = themes_mod.FONTS["mono"]
+
+    def raising(*a, **kw):
+        raise RuntimeError("mock failure")
+
+    monkeypatch.setattr("tkinter.font.families", raising, raising=False)
+    # Не должно падать
+    themes_mod.init_fonts(root=None)
+    # FONTS остались прежними — функция early-return'ит при exception
+    assert themes_mod.FONTS["body"] == body_before
+    assert themes_mod.FONTS["mono"] == mono_before
 
 
 def test_default_theme_is_forest_light():

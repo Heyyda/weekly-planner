@@ -17,7 +17,7 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from shared.parse_input import parse_quick_input
-from client.ui.themes import ThemeManager
+from client.ui.themes import FONTS, ThemeManager
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,7 @@ class QuickCapturePopup:
             placeholder_text="Новая задача на сегодня...",
             border_width=0,
             fg_color=self._theme.get("bg_secondary"),
+            font=FONTS["body"],
         )
         self._entry.pack(side="left", fill="both", expand=True, padx=(4, 4), pady=2)
 

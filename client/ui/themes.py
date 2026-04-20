@@ -6,10 +6,17 @@ ThemeManager — 5 тем (light cream, dark warm, beige sepia, forest_light, fo
 
 Hex-токены light/dark/beige — verbatim из .planning/phases/03-overlay-system/03-UI-SPEC.md §Color Palette.
 Hex-токены forest_light/forest_dark — из Forest refactor spec (Phase A, 260420-x69).
+
+Phase C (260421-11w): init_fonts(root) — runtime резолв Segoe UI / Cascadia Mono
+через tkinter.font.families(). Fallback chains защищают Win10 где Segoe UI Variable
+и Cascadia Mono могут отсутствовать. FONTS dict мутируется in-place — все
+импортёры (from client.ui.themes import FONTS) автоматически получают резолвнутые
+family'и без переприсваиваний.
 """
 from __future__ import annotations
 
 import logging
+import tkinter.font as tkfont
 from typing import Callable, Optional
 
 import customtkinter as ctk
@@ -86,11 +93,28 @@ PALETTES: dict[str, dict[str, str]] = {
     },
 }
 
-# ---- Fonts — Segoe UI (доступен Win7+ и на Win10, и на Win11).
-# Ранее использовался Segoe-UI-Variable шрифт из Win11 — на Win10 tkinter
-# silent fallback'ил на MS Sans Serif (Hotfix 260421-0jb).
+# ---- Fonts ----
+# Pre-init дефолты: Segoe UI (доступен Win7+) и Cascadia Mono (Win11).
+# Реальный резолв — через init_fonts(root) ПОСЛЕ создания Tk root.
+# Hotfix 260421-0jb убрал Segoe UI Variable из хардкода (Win10 silent fallback к MS Sans).
+# Phase C 260421-11w: init_fonts через tkinter.font.families() — proper runtime resolution.
 _FONT_FAMILY = "Segoe UI"
 _FONT_MONO = "Cascadia Mono"
+
+# Fallback chains — проверяются по порядку, первое доступное семейство выбирается.
+_SANS_FALLBACK: tuple[str, ...] = (
+    "Segoe UI Variable",  # Win11 дефолт
+    "Segoe UI",           # Win7+
+    "Arial",              # universal
+    "TkDefaultFont",      # Tk guaranteed
+)
+_MONO_FALLBACK: tuple[str, ...] = (
+    "Cascadia Mono",      # Win11 (Terminal) — опционально
+    "Cascadia Code",      # Win11 Terminal alternate
+    "Consolas",           # Win Vista+
+    "Courier New",        # universal
+    "TkFixedFont",        # Tk guaranteed
+)
 
 FONTS: dict[str, tuple] = {
     "h1":      (_FONT_FAMILY, 16, "bold"),     # Week header
@@ -102,6 +126,57 @@ FONTS: dict[str, tuple] = {
     "icon":    (_FONT_FAMILY, 24, "bold"),
     "mono":    (_FONT_MONO, 12, "normal"),     # Time display
 }
+
+
+def _pick_family(candidates: tuple[str, ...], available: set, final_fallback: str) -> str:
+    """Вернуть первое из candidates, присутствующее в available. Иначе final_fallback."""
+    for fam in candidates:
+        if fam in available:
+            return fam
+    return final_fallback
+
+
+def init_fonts(root) -> None:
+    """Runtime-резолв sans/mono семейств через tkinter.font.families(root).
+
+    ВЫЗЫВАТЬ СРАЗУ после создания Tk root, ДО любых виджетов.
+
+    Мутирует модульные `_FONT_FAMILY` и `_FONT_MONO`, а также перестраивает
+    `FONTS` dict in-place — импортёры (`from client.ui.themes import FONTS`)
+    получают обновлённые family-строки без переприсваиваний, т.к. dict ref
+    не меняется, меняются только значения ключей.
+
+    Fallback chains:
+        SANS: Segoe UI Variable → Segoe UI → Arial → TkDefaultFont
+        MONO: Cascadia Mono → Cascadia Code → Consolas → Courier New → TkFixedFont
+
+    Если `tkfont.families()` падает (нестандартный Tk) — логируем warning
+    и оставляем pre-init дефолты (Segoe UI / Cascadia Mono).
+    """
+    global _FONT_FAMILY, _FONT_MONO
+    try:
+        available = set(tkfont.families(root))
+    except Exception as exc:
+        logger.warning("tkfont.families() failed: %s — используем pre-init дефолты", exc)
+        return
+
+    sans = _pick_family(_SANS_FALLBACK, available, "TkDefaultFont")
+    mono = _pick_family(_MONO_FALLBACK, available, "TkFixedFont")
+
+    _FONT_FAMILY = sans
+    _FONT_MONO = mono
+
+    # Пересобрать FONTS in-place — сохраняет dict-ref у всех import'ёров.
+    FONTS["h1"]      = (sans, 16, "bold")
+    FONTS["h2"]      = (sans, 14, "bold")
+    FONTS["body"]    = (sans, 13, "normal")
+    FONTS["body_m"]  = (sans, 13, "bold")
+    FONTS["caption"] = (sans, 11, "normal")
+    FONTS["small"]   = (sans, 10, "normal")
+    FONTS["icon"]    = (sans, 24, "bold")
+    FONTS["mono"]    = (mono, 12, "normal")
+
+    logger.info("Fonts resolved: sans=%r mono=%r", sans, mono)
 
 
 class ThemeManager:

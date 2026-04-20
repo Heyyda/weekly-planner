@@ -41,7 +41,7 @@ from client.ui.overlay import OverlayManager
 from client.ui.pulse import PulseAnimator
 from client.ui.quick_capture import QuickCapturePopup
 from client.ui.settings import SettingsStore, UISettings
-from client.ui.themes import ThemeManager
+from client.ui.themes import ThemeManager, init_fonts
 from client.utils import autostart as autostart_mod
 from client.utils.notifications import NotificationManager
 from client.utils.tray import TrayManager
@@ -79,6 +79,15 @@ class WeeklyPlannerApp:
 
         self.root: ctk.CTk = ctk.CTk()
         self.root.withdraw()  # root невидим — overlay/window — свои Toplevel
+
+        # Phase C (260421-11w): runtime font resolution — Segoe UI / Cascadia Mono
+        # fallback chain через tkinter.font.families(). Должно быть ДО создания
+        # любых виджетов (FONTS dict мутируется in-place в themes.py).
+        try:
+            init_fonts(self.root)
+        except Exception as exc:
+            logger.warning('init_fonts failed: %s — используем pre-init дефолты', exc)
+
 
         # Компоненты (инициализируются в _setup)
         self.paths: Optional[AppPaths] = None
