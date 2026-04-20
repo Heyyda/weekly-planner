@@ -195,9 +195,12 @@ class TaskWidget:
             fill = self._theme.get("accent_done")
             # Rounded fill via oval+rect approximation
             c.create_rectangle(pad, pad, s - pad, s - pad, fill=fill, outline="", width=0)
-            # Smooth checkmark
+            # Forest Phase B: чекмарк берёт цвет из палитры (bg_primary), не захардкожен "white".
+            # В forest_light → #EEE9DC (cream) на forest-fill #1E5239 — высокий контраст.
+            # В forest_dark → #161E1A (тёмный) на lifted forest #5E9E7A — высокий контраст.
+            checkmark_color = self._theme.get("bg_primary")
             pts = [s * 0.25, s * 0.52, s * 0.42, s * 0.70, s * 0.75, s * 0.32]
-            c.create_line(pts, fill="white", width=2, smooth=True, capstyle="round")
+            c.create_line(pts, fill=checkmark_color, width=2, smooth=True, capstyle="round")
         elif self._task.is_overdue():
             border = self._theme.get("accent_overdue")
             c.create_rectangle(pad, pad, s - pad, s - pad, fill="", outline=border, width=2)
@@ -308,9 +311,20 @@ class TaskWidget:
         if btn is None or not btn.winfo_exists():
             return
         try:
-            color = self._theme.get("accent_brand") if entering else (
-                self._theme.get("text_secondary") if self._hover else self._theme.get("text_tertiary")
-            )
+            if entering:
+                # Forest Phase B: hover на 🗑 → accent_overdue (clay),
+                # на ✎ (и прочих) → accent_brand (forest). Семантика «delete = красный».
+                color = (
+                    self._theme.get("accent_overdue")
+                    if btn is self._del_btn
+                    else self._theme.get("accent_brand")
+                )
+            else:
+                color = (
+                    self._theme.get("text_secondary")
+                    if self._hover
+                    else self._theme.get("text_tertiary")
+                )
             btn.configure(text_color=color)
         except tk.TclError:
             pass

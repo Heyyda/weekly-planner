@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 DAY_NAMES_RU_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 DAY_NAMES_RU_LONG = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 TODAY_STRIP_WIDTH = 3
-CORNER_RADIUS = 10
+CORNER_RADIUS = 12
 HEADER_HEIGHT = 34
 INLINE_ENTRY_HEIGHT = 30
 
@@ -67,6 +67,7 @@ class DaySection:
         self._today_strip: Optional[ctk.CTkFrame] = None
         self._body_frame: Optional[ctk.CTkFrame] = None
         self._header_row: Optional[ctk.CTkFrame] = None
+        self._divider: Optional[ctk.CTkFrame] = None
 
         self.frame = ctk.CTkFrame(
             parent, corner_radius=CORNER_RADIUS,
@@ -97,8 +98,9 @@ class DaySection:
             if t.id in self._task_widgets:
                 self._task_widgets[t.id].update_task(t)
             else:
+                # Forest Phase B: force transparent 'line' style for all task rows
                 w = TaskWidget(
-                    self._body_frame, t, self._task_style, self._theme,
+                    self._body_frame, t, "line", self._theme,
                     self._on_task_toggle, self._on_task_edit, self._on_task_delete,
                 )
                 w.pack(fill="x", pady=(0, 3))
@@ -133,7 +135,8 @@ class DaySection:
     # ---- Build ----
 
     def _day_bg_color(self) -> str:
-        return self._theme.get("bg_secondary") if self._is_today else self._theme.get("bg_primary")
+        # Forest Phase B: today → bg_tertiary (forest-tint), regular days → transparent (сливаются с bg_primary окна)
+        return self._theme.get("bg_tertiary") if self._is_today else "transparent"
 
     def _build(self) -> None:
         # Header row — single line, 34px
@@ -190,14 +193,28 @@ class DaySection:
         self._body_frame.bind("<Configure>", self._on_body_configure, add="+")
         # Don't pack yet — visibility controlled in _update_body_visibility
 
+        # Forest Phase B: subtle 1px divider снизу каждой секции (bg_tertiary).
+        # На bg_primary (regular days) даёт tint-линию ~4% контраста — structure без карточек.
+        self._divider = ctk.CTkFrame(
+            self.frame, height=1,
+            fg_color=self._theme.get("bg_tertiary"),
+            corner_radius=0,
+        )
+        self._divider.pack(side="bottom", fill="x", padx=0, pady=0)
+
     def _update_body_visibility(self) -> None:
         """Пустой день + no inline-add → body скрыт (только header = 34px)."""
         if self._destroyed or self._body_frame is None:
             return
         should_show = len(self._tasks) > 0 or self._inline_entry is not None
+        # Forest Phase B: today-секция получает более щедрый padding 14×12 (spec 4.4).
+        if self._is_today:
+            body_padx, body_pady = 14, (2, 12)
+        else:
+            body_padx, body_pady = 10, (2, 6)
         try:
             if should_show:
-                self._body_frame.pack(fill="x", padx=10, pady=(2, 6))
+                self._body_frame.pack(fill="x", padx=body_padx, pady=body_pady)
             else:
                 self._body_frame.pack_forget()
         except tk.TclError:
@@ -306,8 +323,11 @@ class DaySection:
     def _apply_theme(self, palette: dict) -> None:
         if self._destroyed:
             return
+        # Forest Phase B: frame bg обновляется из свежей палитры
+        # (today → bg_tertiary, regular → transparent).
+        new_bg = palette.get("bg_tertiary") if self._is_today else "transparent"
         try:
-            self.frame.configure(fg_color=self._day_bg_color())
+            self.frame.configure(fg_color=new_bg)
         except tk.TclError:
             pass
         if self._today_strip is not None and self._today_strip.winfo_exists():
@@ -323,5 +343,11 @@ class DaySection:
         if self._plus_btn is not None and self._plus_btn.winfo_exists():
             try:
                 self._plus_btn.configure(text_color=palette.get("text_tertiary"))
+            except tk.TclError:
+                pass
+        # Forest Phase B: divider цвета bg_tertiary обновляется при смене темы.
+        if self._divider is not None and self._divider.winfo_exists():
+            try:
+                self._divider.configure(fg_color=palette.get("bg_tertiary"))
             except tk.TclError:
                 pass

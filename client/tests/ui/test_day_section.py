@@ -223,3 +223,48 @@ def test_destroy_cleans_widgets(ds_deps):
     ds_deps["root"].update_idletasks()
     assert ds._destroyed is True
     assert ds._task_widgets == {}
+
+
+# ---------- Forest Phase B: structural polish ----------
+
+def test_today_bg_is_bg_tertiary(ds_deps):
+    """Forest Phase B: today-секция использует bg_tertiary (forest-tint),
+    а не bg_secondary (lifted surface)."""
+    ds = _make(ds_deps, is_today=True)
+    expected = ds_deps["theme"].get("bg_tertiary")
+    assert ds.frame.cget("fg_color") == expected
+    ds.destroy()
+
+
+def test_regular_day_bg_is_transparent(ds_deps):
+    """Forest Phase B: regular days сливаются с фоном окна (bg_primary)
+    через fg_color='transparent' — без отдельной карточки."""
+    ds = _make(ds_deps, is_today=False)
+    assert ds.frame.cget("fg_color") == "transparent"
+    ds.destroy()
+
+
+def test_divider_exists_and_uses_bg_tertiary(ds_deps):
+    """Forest Phase B: каждая секция имеет 1px divider цвета bg_tertiary."""
+    ds = _make(ds_deps)
+    assert ds._divider is not None
+    assert ds._divider.cget("fg_color") == ds_deps["theme"].get("bg_tertiary")
+    assert int(ds._divider.cget("height")) == 1
+    ds.destroy()
+
+
+def test_corner_radius_is_12():
+    """Forest Phase B: CORNER_RADIUS поднят 10 → 12 (spec 4.3)."""
+    from client.ui.day_section import CORNER_RADIUS
+    assert CORNER_RADIUS == 12
+
+
+def test_task_widgets_forced_to_line_style(ds_deps):
+    """Forest Phase B: TaskWidget принудительно создаётся в стиле 'line',
+    даже если caller передал task_style='card'."""
+    ds = _make(ds_deps, style="card")
+    t = ds_deps["factory"](text="x")
+    ds.render_tasks([t])
+    w = ds._task_widgets[t.id]
+    assert w._style == "line"
+    ds.destroy()

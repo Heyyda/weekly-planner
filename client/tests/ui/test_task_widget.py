@@ -237,3 +237,34 @@ def test_destroy_marks_widget(tw_deps):
     w.destroy()
     tw_deps["root"].update_idletasks()
     assert w._destroyed is True
+
+
+# ---------- Forest Phase B: palette-driven checkmark + clay delete hover ----------
+
+def test_done_checkmark_uses_bg_primary(tw_deps):
+    """Forest Phase B: чекмарк берёт цвет из палитры (bg_primary), не захардкожен white."""
+    task = tw_deps["factory"](done=True)
+    w = _make_widget(tw_deps, task=task)
+    # Checkmark = второй item на canvas (первый — fill rectangle).
+    items = w._cb_canvas.find_all()
+    assert len(items) >= 2
+    checkmark_line = items[1]
+    fill = w._cb_canvas.itemcget(checkmark_line, "fill")
+    assert fill == tw_deps["theme"].get("bg_primary")
+    w.destroy()
+
+
+def test_delete_icon_hover_uses_accent_overdue(tw_deps):
+    """Forest Phase B: hover на 🗑 красит иконку в accent_overdue (clay)."""
+    w = _make_widget(tw_deps)
+    w._icon_hover(w._del_btn, entering=True)
+    assert w._del_btn.cget("text_color") == tw_deps["theme"].get("accent_overdue")
+    w.destroy()
+
+
+def test_edit_icon_hover_still_uses_accent_brand(tw_deps):
+    """Forest Phase B: hover на ✎ остаётся accent_brand (forest) — только delete меняется."""
+    w = _make_widget(tw_deps)
+    w._icon_hover(w._edit_btn, entering=True)
+    assert w._edit_btn.cget("text_color") == tw_deps["theme"].get("accent_brand")
+    w.destroy()
