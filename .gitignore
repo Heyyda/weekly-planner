@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build_output/
+build/planner/
+*.spec
+!planner.spec
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets
+.env
+.env.local
+*.key
+*.pem
+
+# Local cache
+local_cache.json
+*.db
+
+# PyInstaller
+*.manifest
+*.exe
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite журналы
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Дополнительные секреты
+.env.production
+*.env
+!.env.example
+!server/.env.example
+
+# SQLite база данных (не коммитим данные БД)
+weekly_planner.db
+weekly_planner.db-wal
+weekly_planner.db-shm
+
+# IDE
+*.swo

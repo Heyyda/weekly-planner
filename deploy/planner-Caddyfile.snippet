@@ -1,0 +1,10 @@
+planner.heyda.ru {
+    reverse_proxy 127.0.0.1:8100
+    encode gzip
+
+    # Логирование в journalctl (stdout → systemd journal для caddy)
+    log {
+        output stdout
+        format json
+    }
+}

@@ -1,0 +1,31 @@
+[Unit]
+Description=Личный Еженедельник API (FastAPI)
+Documentation=https://github.com/Heyyda/weekly-planner
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=planner
+Group=planner
+WorkingDirectory=/opt/planner
+EnvironmentFile=/etc/planner/planner.env
+ExecStart=/opt/planner/venv/bin/uvicorn server.api.app:app \
+    --host 127.0.0.1 \
+    --port 8100 \
+    --workers 1 \
+    --log-config /opt/planner/deploy/uvicorn-log.json
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=planner-api
+
+# Безопасность: ограничиваем доступ к файловой системе
+ReadWritePaths=/var/lib/planner
+ReadOnlyPaths=/opt/planner /etc/planner
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
