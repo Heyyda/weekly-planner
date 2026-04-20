@@ -366,3 +366,100 @@ def test_exit_edit_mode_cancel_does_not_call_on_task_update(ds_deps):
     assert ds._editing_task_id is None
     assert ds._edit_card is None
     ds.destroy()
+
+
+# ---------- Forest Phase H: plus-btn hover tween + archive dimming ----------
+
+
+def _pump_tween(root, widget, attr: str, expected_hex: str, timeout_s: float = 1.5) -> str:
+    """Phase H helper — идентичен _pump_tween из test_task_widget.py."""
+    import time
+    deadline = time.monotonic() + timeout_s
+    last = ""
+    while time.monotonic() < deadline:
+        root.update()
+        try:
+            last = widget.cget(attr)
+        except Exception:
+            last = ""
+        if str(last).lower() == expected_hex.lower():
+            return last
+    return last
+
+
+def test_plus_btn_hover_tween(ds_deps):
+    """Phase H Fix 1: <Enter> на plus-btn запускает ColorTween к accent_brand.
+
+    Реализация уже в Phase G (строки ~330-333 day_section.py), этот тест
+    фиксирует контракт — tween должен довести text_color до accent_brand
+    за ~150ms."""
+    ds = _make(ds_deps)
+    ds_deps["root"].update_idletasks()
+    assert ds._plus_btn is not None
+    target = ds_deps["theme"].get("accent_brand")
+    ds._tween_plus(target)
+    final = _pump_tween(ds_deps["root"], ds._plus_btn, "text_color", target)
+    assert str(final).lower() == target.lower()
+    ds.destroy()
+
+
+def test_plus_btn_hover_leave_restores_tertiary(ds_deps):
+    """Phase H: <Leave> возвращает цвет к text_tertiary."""
+    ds = _make(ds_deps)
+    ds_deps["root"].update_idletasks()
+    brand = ds_deps["theme"].get("accent_brand")
+    tertiary = ds_deps["theme"].get("text_tertiary")
+    # Сначала enter.
+    ds._tween_plus(brand)
+    _pump_tween(ds_deps["root"], ds._plus_btn, "text_color", brand)
+    # Теперь leave.
+    ds._tween_plus(tertiary)
+    final = _pump_tween(ds_deps["root"], ds._plus_btn, "text_color", tertiary)
+    assert str(final).lower() == tertiary.lower()
+    ds.destroy()
+
+
+def test_apply_dimmed_palette_with_dict_applies_dim(ds_deps):
+    """Phase H Fix 2: apply_dimmed_palette(dim_dict) меняет frame bg к dim-значению."""
+    ds = _make(ds_deps, is_today=True)
+    ds_deps["root"].update_idletasks()
+    # Построим dim: все ключи = "#000000" (крайний случай — полный чёрный).
+    dim_dict = {
+        "bg_primary": "#000000",
+        "bg_secondary": "#000000",
+        "bg_tertiary": "#111111",
+        "text_primary": "#222222",
+        "text_secondary": "#333333",
+        "text_tertiary": "#444444",
+        "accent_brand": "#555555",
+    }
+    ds.apply_dimmed_palette(dim_dict)
+    # today секция: fg_color = bg_tertiary из dim-палитры.
+    assert ds.frame.cget("fg_color") == "#111111"
+    # today strip должен взять accent_brand из dim.
+    assert ds._today_strip.cget("fg_color") == "#555555"
+    ds.destroy()
+
+
+def test_apply_dimmed_palette_none_restores_live(ds_deps):
+    """Phase H Fix 2: apply_dimmed_palette(None) восстанавливает живую палитру."""
+    ds = _make(ds_deps, is_today=True)
+    ds_deps["root"].update_idletasks()
+    original_bg = ds.frame.cget("fg_color")
+    original_strip = ds._today_strip.cget("fg_color")
+    # Сначала применим dim.
+    dim_dict = {
+        "bg_primary": "#000000",
+        "bg_secondary": "#000000",
+        "bg_tertiary": "#111111",
+        "text_primary": "#222222",
+        "text_secondary": "#333333",
+        "text_tertiary": "#444444",
+        "accent_brand": "#555555",
+    }
+    ds.apply_dimmed_palette(dim_dict)
+    # Теперь None — вернёт оригинал.
+    ds.apply_dimmed_palette(None)
+    assert ds.frame.cget("fg_color") == original_bg
+    assert ds._today_strip.cget("fg_color") == original_strip
+    ds.destroy()

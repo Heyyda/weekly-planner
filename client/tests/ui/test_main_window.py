@@ -286,3 +286,61 @@ def test_on_task_update_applies_to_storage(mw_phase4_deps, timestamped_task_fact
     assert updated.text == "updated"
     assert updated.done is True
     mw.destroy()
+
+
+# ---------- Forest Phase H: archive-mode dim palette ----------
+
+
+def test_archive_applies_dim_palette_to_day_sections(mw_phase4_deps, monkeypatch):
+    """Phase H Fix 2: _on_archive_changed(True) → apply_dimmed_palette(dim_dict)
+    на всех DaySection'ах. Раньше interpolate_palette присваивался в  (dead code)."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    # Шпионим за apply_dimmed_palette на каждой секции.
+    spies = {}
+    for d, ds in mw._day_sections.items():
+        spy = MagicMock(wraps=ds.apply_dimmed_palette)
+        ds.apply_dimmed_palette = spy
+        spies[d] = spy
+    mw._on_archive_changed(True)
+    # Каждая секция должна получить вызов с dict (не None).
+    for d, spy in spies.items():
+        spy.assert_called_once()
+        arg = spy.call_args[0][0]
+        assert arg is not None, f"секция {d} не получила dim-dict"
+        assert isinstance(arg, dict)
+        assert "bg_primary" in arg
+    mw.destroy()
+
+
+def test_archive_clear_restores_palette(mw_phase4_deps):
+    """Phase H Fix 2: _on_archive_changed(False) → apply_dimmed_palette(None)
+    на всех DaySection'ах (live-палитра восстанавливается)."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    # Сначала войти в архив, затем выйти — тогда spies увидят вызов с None.
+    mw._on_archive_changed(True)
+    spies = {}
+    for d, ds in mw._day_sections.items():
+        spy = MagicMock(wraps=ds.apply_dimmed_palette)
+        ds.apply_dimmed_palette = spy
+        spies[d] = spy
+    mw._on_archive_changed(False)
+    for d, spy in spies.items():
+        spy.assert_called_once_with(None)
+    mw.destroy()
+
+
+def test_compute_dim_palette_is_darker_than_source(mw_phase4_deps):
+    """Phase H: dim-палитра визуально темнее/ближе к bg_primary чем оригинал."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    dim = mw._compute_dim_palette()
+    # dim — полная палитра, содержит основные ключи.
+    assert "bg_primary" in dim
+    assert "accent_brand" in dim
+    assert "text_primary" in dim
+    # Для non-bg_primary ключей dim-значение должно приближаться к bg_primary.
+    # Проверяем что accent_brand изменился (interpolate factor=0.3 ≠ 0).
+    from client.ui.themes import PALETTES
+    current = mw._theme.current
+    original_accent = PALETTES[current]["accent_brand"]
+    assert dim["accent_brand"] != original_accent, "dim не изменил accent_brand"
+    mw.destroy()

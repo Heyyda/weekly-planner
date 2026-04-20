@@ -21,6 +21,12 @@ Forest Phase G (260421-2a1):
 - animate_in(): после pack — frame.height с 0 до target_h за 200ms (ease-out cubic).
   Использует pack_propagate(False) на время анимации, восстанавливает True по
   завершению. Защита от destroy mid-animation: каждый шаг проверяет winfo_exists.
+
+Forest Phase H (260421-2mk):
+- BORDER_WIDTH 2 → 0: убрали полную рамку, оставили только 3px LEFT_STRIP (composite
+  HBox). Раньше рамка визуально перекрывала strip и давала «двойной» accent-эффект;
+  теперь match превью (edit-card::before в forest-preview.html — absolute-positioned
+  3px полоса без border на контейнере).
 """
 from __future__ import annotations
 
@@ -44,7 +50,7 @@ class TaskEditCard:
     """Inline edit-карточка. Создаётся DaySection.enter_edit_mode."""
 
     CORNER_RADIUS = 10
-    BORDER_WIDTH = 2
+    BORDER_WIDTH = 0
     LEFT_STRIP_WIDTH = 3
     TEXTBOX_HEIGHT = 56
     PILL_HEIGHT = 26

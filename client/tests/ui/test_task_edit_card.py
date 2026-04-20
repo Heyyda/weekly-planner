@@ -167,3 +167,33 @@ def test_collect_fields_returns_none_for_empty_text(tec_deps):
     fields = card.collect_fields()
     assert fields is None
     card.destroy()
+
+
+# ---------- Forest Phase H: 3px left strip instead of full border ----------
+
+
+def test_3px_accent_strip_exists(tec_deps):
+    """Phase H Fix 3: карточка имеет отдельный 3px strip слева (composite HBox)
+    вместо полной рамки border_width=2. _strip — CTkFrame с width=3 и
+    fg_color=accent_brand."""
+    card = _make(tec_deps)
+    assert card._strip is not None
+    assert card._strip.winfo_exists()
+    # Width фиксирован 3px.
+    assert int(card._strip.cget("width")) == 3
+    # Цвет = accent_brand из текущей палитры.
+    expected = tec_deps["theme"].get("accent_brand")
+    assert card._strip.cget("fg_color") == expected
+    card.destroy()
+
+
+def test_frame_border_width_is_zero(tec_deps):
+    """Phase H Fix 3: полная рамка убрана (BORDER_WIDTH=0) — визуально остаётся
+    только 3px strip слева. Совпадает с forest-preview.html (edit-card::before
+    absolute 3px, без border на контейнере в full-sense)."""
+    card = _make(tec_deps)
+    from client.ui.task_edit_card import TaskEditCard
+    assert TaskEditCard.BORDER_WIDTH == 0
+    # На живом виджете — тоже 0.
+    assert int(card.frame.cget("border_width")) == 0
+    card.destroy()

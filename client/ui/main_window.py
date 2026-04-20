@@ -24,6 +24,11 @@ Forest Phase F (260421-1ya) — dark-parity audit:
     скролл-фрейм перекрашивался при live-switching.
   - Hardcoded fallback "#F5EFE6" (bg_primary из light-темы) заменён на резолв
     через self._theme.get("bg_primary") — корректен для любой активной темы.
+
+Forest Phase H (260421-2mk) — convergence:
+  - _on_archive_changed реально применяет dimmed палитру на DaySections через
+    apply_dimmed_palette(dict) / (None). Раньше interpolate_palette вычислялся
+    и выбрасывался в `_`.
 """
 from __future__ import annotations
 
@@ -42,7 +47,7 @@ from client.ui.drag_controller import DragController, DropZone
 from client.ui.edit_dialog import EditDialog
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.color_tween import ColorTween
-from client.ui.themes import FONTS, ThemeManager
+from client.ui.themes import FONTS, PALETTES, ThemeManager
 from client.ui.undo_toast import UndoToastManager
 from client.ui.week_navigation import (
     WeekNavigation,
@@ -77,6 +82,9 @@ class MainWindow:
     # "extended frame" >=1px для показа системной тени под frameless окном.
     DWM_SHADOW_DELAY_MS = 50
     CLOSE_BTN_TWEEN_MS = 150
+
+    # Phase H: archive-dim factor — 0.3 = 30% затемнения относительно bg_primary.
+    ARCHIVE_DIM_FACTOR = 0.3
 
     def __init__(
         self,
@@ -137,6 +145,9 @@ class MainWindow:
 
         # Debounce handle для re-apply rounded-region при resize (hotfix 260421-0jb)
         self._rgn_reapply_job: Optional[str] = None
+
+        # Phase H: запоминаем archive-state чтобы после rebuild восстановить dim.
+        self._current_archive: bool = False
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -286,19 +297,37 @@ class MainWindow:
         self._refresh_tasks()
 
     def _on_archive_changed(self, is_archive: bool) -> None:
-        """WEEK-06: archive mode на всех DaySection + DragController."""
+        """WEEK-06: archive mode на всех DaySection + DragController.
+
+        Phase H: РЕАЛЬНО применяем dimmed палитру — раньше interpolate_palette
+        вычислялся и присваивался `_` (dead code). Теперь dim-dict проходит
+        по всем DaySection через apply_dimmed_palette().
+        """
+        self._current_archive = is_archive
+
         for ds in self._day_sections.values():
             ds.set_archive_mode(is_archive)
         if self._drag_controller:
             self._drag_controller.set_archive_mode(is_archive)
+
         if is_archive:
-            base_palette = {
-                "bg_primary": self._theme.get("bg_primary"),
-                "bg_secondary": self._theme.get("bg_secondary"),
-                "text_primary": self._theme.get("text_primary"),
-                "accent_brand": self._theme.get("accent_brand"),
-            }
-            _ = interpolate_palette(base_palette, self._theme.get("bg_primary"), 0.3)
+            dim_palette = self._compute_dim_palette()
+            for ds in self._day_sections.values():
+                ds.apply_dimmed_palette(dim_palette)
+        else:
+            # Выход из архива — восстанавливаем live-палитру.
+            for ds in self._day_sections.values():
+                ds.apply_dimmed_palette(None)
+
+    def _compute_dim_palette(self) -> dict:
+        """Phase H: построить dimmed-версию текущей палитры через interpolate
+        с bg_primary (factor=0.3). Полная палитра (все ключи), не частичная —
+        иначе _apply_theme получит неполный dict и fallback через _theme.get
+        вернёт необчищенные цвета, визуал будет частично не-dim."""
+        current_theme = self._theme.current if hasattr(self._theme, "current") else "forest_light"
+        base_palette = dict(PALETTES.get(current_theme, {}))
+        bg = base_palette.get("bg_primary") or self._theme.get("bg_primary")
+        return interpolate_palette(base_palette, bg, self.ARCHIVE_DIM_FACTOR)
 
     # ---- Day sections rebuild ----
 
@@ -578,6 +607,17 @@ class MainWindow:
                 self._title_separator.configure(fg_color=_col("bg_tertiary"))
         except tk.TclError:
             pass
+
+        # Phase H: если активен archive — переприменить dim под новую палитру.
+        # Иначе пользователь переключит тему во время архива и получит полноцветные
+        # DaySection.
+        if getattr(self, "_current_archive", False):
+            try:
+                dim = self._compute_dim_palette()
+                for ds in self._day_sections.values():
+                    ds.apply_dimmed_palette(dim)
+            except Exception as exc:
+                logger.debug("archive dim re-apply failed: %s", exc)
 
     # ---- Frameless + custom title bar (Plan 260421-06u) ----
 

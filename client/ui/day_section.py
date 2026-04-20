@@ -12,6 +12,11 @@ Forest Phase D (260421-183):
 - `_editing_task_id` трекает текущую редактируемую задачу (одна за раз)
 - Открытие второй edit-mode автосохраняет первую (flow-friendly)
 - `on_task_update(task_id, fields)` callback для MainWindow → storage.update_task
+
+Forest Phase H (260421-2mk):
+- apply_dimmed_palette(Optional[dict]): принудительно применить dimmed палитру
+  (archive mode) или восстановить исходную (None). Работает через прямой вызов
+  `_apply_theme(palette_dict)` с dict из MainWindow.
 """
 from __future__ import annotations
 
@@ -66,6 +71,8 @@ class DaySection:
         self._on_task_update = on_task_update
         self._is_archive: bool = False
         self._destroyed: bool = False
+        # Phase H: dimmed palette override — None = использовать _theme как source of truth.
+        self._dimmed_palette: Optional[dict] = None
 
         self._task_widgets: dict[str, TaskWidget] = {}
         self._tasks: list[Task] = []
@@ -132,6 +139,32 @@ class DaySection:
     def set_archive_mode(self, is_archive: bool) -> None:
         self._is_archive = is_archive
         self._update_body_visibility()
+
+    def apply_dimmed_palette(self, palette: Optional[dict]) -> None:
+        """Phase H: применить dimmed-палитру (archive mode) или восстановить обычную.
+
+        При archive-режиме MainWindow передаёт сюда результат
+        `interpolate_palette(current, bg_primary, 0.3)` — dimmed-dict.
+        При выходе из archive — None, тогда восстанавливаем live-палитру из
+        ThemeManager.
+
+        Работает поверх subscribe'нутого `_apply_theme` — при смене темы
+        ThemeManager → callback, затем (если _dimmed_palette != None) сразу
+        переприменяем dim. Для простоты _apply_theme теперь учитывает dim-override.
+        """
+        if self._destroyed:
+            return
+        self._dimmed_palette = palette
+        # Применить эффективную палитру: dim если задан, иначе текущая тема.
+        effective = palette if palette is not None else self._full_current_palette()
+        self._apply_theme(effective)
+
+    def _full_current_palette(self) -> dict:
+        """Собрать полный palette-dict из ThemeManager — используется в
+        apply_dimmed_palette(None) и при rebuild. Копия PALETTES[current]."""
+        from client.ui.themes import PALETTES
+        current = self._theme.current if hasattr(self._theme, "current") else "forest_light"
+        return dict(PALETTES.get(current, {}))
 
     def destroy(self) -> None:
         self._destroyed = True
@@ -304,11 +337,11 @@ class DaySection:
             label_text = f"{DAY_NAMES_RU_LONG[self._day_date.weekday()]}, {self._day_date.day}"
         font = FONTS["h2"] if self._is_today else FONTS["body"]
 
-        day_label = ctk.CTkLabel(
+        self._day_label = ctk.CTkLabel(
             self._header_row, text=label_text, font=font,
             text_color=self._theme.get("text_primary"),
         )
-        day_label.pack(side="left", pady=4)
+        self._day_label.pack(side="left", pady=4)
 
         # Right side: counter + plus
         right = ctk.CTkFrame(self._header_row, fg_color="transparent")
@@ -489,6 +522,17 @@ class DaySection:
     def _apply_theme(self, palette: dict) -> None:
         if self._destroyed:
             return
+        # Phase H: если активен dim-override и callback пришёл от ThemeManager
+        # с обычной палитрой — переприменяем dim поверх. Условие: dim_palette
+        # задан И переданная палитра не равна ему (идентичность dict не работает
+        # после re-interpolate — проверяем по bg_primary ключу).
+        if self._dimmed_palette is not None and palette is not self._dimmed_palette:
+            # ThemeManager дёрнул _apply_theme обычной палитрой — это смена темы
+            # во время archive-режима. MainWindow перевычислит dim и вызовет
+            # apply_dimmed_palette заново, но для локальной устойчивости на всякий
+            # случай применяем сохранённый dim поверх.
+            palette = self._dimmed_palette
+
         # Forest Phase B: frame bg обновляется из свежей палитры
         # (today → bg_tertiary, regular → transparent).
         new_bg = palette.get("bg_tertiary") if self._is_today else "transparent"
@@ -499,6 +543,13 @@ class DaySection:
         if self._today_strip is not None and self._today_strip.winfo_exists():
             try:
                 self._today_strip.configure(fg_color=palette.get("accent_brand"))
+            except tk.TclError:
+                pass
+        # Phase H: day_label text_color должен следовать за палитрой (раньше
+        # устанавливался один раз при build).
+        if getattr(self, "_day_label", None) is not None and self._day_label.winfo_exists():
+            try:
+                self._day_label.configure(text_color=palette.get("text_primary"))
             except tk.TclError:
                 pass
         if self._counter_label is not None and self._counter_label.winfo_exists():

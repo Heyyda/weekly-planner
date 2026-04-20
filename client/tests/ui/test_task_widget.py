@@ -290,3 +290,67 @@ def test_edit_icon_hover_still_uses_accent_brand(tw_deps):
     final = _pump_tween(tw_deps["root"], w._edit_btn, target)
     assert str(final).lower() == target.lower()
     w.destroy()
+
+
+# ---------- Forest Phase H: done-task overstrike ----------
+
+
+def test_done_task_has_overstrike(tw_deps):
+    """Phase H Fix 4: done-задача рендерится с overstrike через tkinter font-tuple
+    (family, size, 'overstrike'). Проверяем через tkinter.font.Font на text_label.
+
+    Реализация в task_widget.py _update_text_decoration: для done
+    configure(font=(family, size, 'overstrike')). Tk интерпретирует строку
+    'overstrike' как font-style flag → overstrike=1 в Font.actual()."""
+    import tkinter.font as tkfont
+    task = tw_deps["factory"](done=True)
+    w = _make_widget(tw_deps, task=task)
+    label = w._text_label
+    assert label is not None and label.winfo_exists()
+    # Получить актуальный font-spec после configure.
+    font_spec = label.cget("font")
+    # font_spec может быть tuple или CTkFont — резолвим через tkfont.Font().
+    try:
+        f = tkfont.Font(root=tw_deps["root"], font=font_spec)
+        actual_overstrike = f.actual("overstrike")
+    except Exception:
+        # Fallback: проверить на tuple-form.
+        actual_overstrike = int("overstrike" in str(font_spec).lower())
+    assert int(actual_overstrike) == 1, (
+        f"done-task текст должен быть overstrike, получили font={font_spec!r}"
+    )
+    w.destroy()
+
+
+def test_not_done_task_has_no_overstrike(tw_deps):
+    """Phase H Fix 4: недовыполненная задача НЕ имеет overstrike."""
+    import tkinter.font as tkfont
+    task = tw_deps["factory"](done=False)
+    w = _make_widget(tw_deps, task=task)
+    label = w._text_label
+    font_spec = label.cget("font")
+    try:
+        f = tkfont.Font(root=tw_deps["root"], font=font_spec)
+        actual_overstrike = f.actual("overstrike")
+    except Exception:
+        actual_overstrike = int("overstrike" in str(font_spec).lower())
+    assert int(actual_overstrike) == 0
+    w.destroy()
+
+
+def test_done_toggle_applies_and_removes_overstrike(tw_deps):
+    """Phase H Fix 4: переключение done=True/False меняет overstrike-flag."""
+    import tkinter.font as tkfont
+    task = tw_deps["factory"](done=False)
+    w = _make_widget(tw_deps, task=task)
+    # Toggle → done=True → overstrike=1
+    w._on_checkbox_click()
+    tw_deps["root"].update_idletasks()
+    f1 = tkfont.Font(root=tw_deps["root"], font=w._text_label.cget("font"))
+    assert f1.actual("overstrike") == 1
+    # Toggle back → done=False → overstrike=0
+    w._on_checkbox_click()
+    tw_deps["root"].update_idletasks()
+    f2 = tkfont.Font(root=tw_deps["root"], font=w._text_label.cget("font"))
+    assert f2.actual("overstrike") == 0
+    w.destroy()
