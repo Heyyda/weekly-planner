@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Phase 4 context + UI-SPEC + prototype approved
-last_updated: "2026-04-16T11:49:13.075Z"
+last_updated: "2026-04-21T08:00:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -25,6 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 
 Phase: 4
 Plan: Not started
+
+Last activity: 2026-04-21 — Completed Forest refactor Phase A + A2 + A3 hotfix (palette, frameless window, Win10 visual fixes)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260420-x69 | Phase A Forest: add forest_light / forest_dark palettes, make forest_light default | 2026-04-21 | (pending) | [260420-x69](./quick/260420-x69-phase-a-forest-add-forest-light-and-fore/) |
+| 260421-06u | Frameless main window: remove Windows title bar, custom 28px Forest header, DWM rounded corners | 2026-04-21 | (pending) | [260421-06u](./quick/260421-06u-frameless-main-window-remove-windows-tit/) |
+| 260421-0jb | Hotfix: Win10 rounded corners via SetWindowRgn, Segoe UI fallback, ghost-style week-nav buttons | 2026-04-21 | (pending) | [260421-0jb](./quick/260421-0jb-hotfix-forest-a-a2-rounded-corners-on-wi/) |
 
 ## Performance Metrics
 

@@ -18,6 +18,7 @@ Phase 4 (новое):
 """
 from __future__ import annotations
 
+import ctypes
 import logging
 import tkinter as tk
 from datetime import date, timedelta
@@ -47,6 +48,19 @@ class MainWindow:
 
     MIN_SIZE = (320, 320)
     DEFAULT_SIZE = (460, 600)
+
+    # Frameless + custom title bar (Plan 260421-06u)
+    TITLE_BAR_HEIGHT = 28
+    ACCENT_STRIP_WIDTH = 3
+    FRAMELESS_INIT_DELAY_MS = 100   # Pitfall 1: Win11 DWM timing — копия паттерна из overlay.py
+    DWM_CORNER_DELAY_MS = 150       # Дополнительная задержка перед region-вызовом
+    DWMWA_WINDOW_CORNER_PREFERENCE = 33
+    DWMWCP_ROUND = 2
+
+    # Rounded corners (hotfix 260421-0jb): GDI SetWindowRgn работает Win7+,
+    # в отличие от DWM Win11-only API. Radius 12px — современный Forest-look.
+    WINDOW_CORNER_RADIUS = 12
+    RGN_REAPPLY_DEBOUNCE_MS = 50    # Дебаунс re-apply региона при resize
 
     def __init__(
         self,
@@ -87,10 +101,24 @@ class MainWindow:
             pass
         self._window.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # Drag-state (для кастомной шапки — см. _on_title_drag_*)
+        self._title_drag_offset_x = 0
+        self._title_drag_offset_y = 0
+
+        # Ссылки на виджеты шапки (заполняются в _build_title_bar, используются в _apply_theme)
+        self._title_bar: Optional[ctk.CTkFrame] = None
+        self._title_accent_strip: Optional[ctk.CTkFrame] = None
+        self._title_label: Optional[ctk.CTkLabel] = None
+        self._title_close_btn: Optional[ctk.CTkLabel] = None
+        self._title_separator: Optional[ctk.CTkFrame] = None
+
         self._day_sections: dict[date, DaySection] = {}
         self._drag_controller: Optional[DragController] = None
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
+
+        # Debounce handle для re-apply rounded-region при resize (hotfix 260421-0jb)
+        self._rgn_reapply_job: Optional[str] = None
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -109,6 +137,9 @@ class MainWindow:
                 lambda e: self._quick_capture_trigger(),
                 add="+",
             )
+
+        # Frameless: overrideredirect + DWM rounded corners (Pitfall 1 — after delay)
+        self._window.after(self.FRAMELESS_INIT_DELAY_MS, self._init_frameless_style)
 
         if self._storage is not None:
             self._refresh_tasks()
@@ -191,6 +222,8 @@ class MainWindow:
     def _build_ui(self) -> None:
         self._root_frame = ctk.CTkFrame(self._window, corner_radius=0)
         self._root_frame.pack(fill="both", expand=True)
+
+        self._build_title_bar(self._root_frame)
 
         self._week_nav = WeekNavigation(
             self._root_frame, self._window, self._theme,
@@ -407,6 +440,20 @@ class MainWindow:
                     self._settings.window_position = new_pos
             except tk.TclError:
                 pass
+            # Debounced re-apply rounded region — resize drag генерит десятки <Configure>,
+            # SetWindowRgn привязан к конкретным размерам окна (hotfix 260421-0jb).
+            if self._rgn_reapply_job is not None:
+                try:
+                    self._window.after_cancel(self._rgn_reapply_job)
+                except Exception:
+                    pass
+            try:
+                self._rgn_reapply_job = self._window.after(
+                    self.RGN_REAPPLY_DEBOUNCE_MS,
+                    self._apply_window_region_rounded,
+                )
+            except tk.TclError:
+                self._rgn_reapply_job = None
 
     def _on_close(self) -> None:
         self._save_window_state()
@@ -437,3 +484,185 @@ class MainWindow:
                 self._root_frame.configure(fg_color=bg)
         except tk.TclError:
             pass
+        # Title bar перекрашивание (Plan 260421-06u).
+        # Fallback через ThemeManager.get — частичный palette dict может не содержать
+        # всех нужных ключей (см. __init__ где передаётся только 4 ключа).
+        def _col(key: str) -> str:
+            val = palette.get(key)
+            if val is None:
+                val = self._theme.get(key)
+            return val
+        try:
+            if self._title_bar is not None and self._title_bar.winfo_exists():
+                self._title_bar.configure(fg_color=_col("bg_primary"))
+            if (
+                self._title_accent_strip is not None
+                and self._title_accent_strip.winfo_exists()
+            ):
+                self._title_accent_strip.configure(fg_color=_col("accent_brand"))
+            if self._title_label is not None and self._title_label.winfo_exists():
+                self._title_label.configure(text_color=_col("text_secondary"))
+            if (
+                self._title_close_btn is not None
+                and self._title_close_btn.winfo_exists()
+            ):
+                self._title_close_btn.configure(text_color=_col("text_tertiary"))
+            if (
+                self._title_separator is not None
+                and self._title_separator.winfo_exists()
+            ):
+                self._title_separator.configure(fg_color=_col("bg_tertiary"))
+        except tk.TclError:
+            pass
+
+    # ---- Frameless + custom title bar (Plan 260421-06u) ----
+
+    def _init_frameless_style(self) -> None:
+        """Pitfall 1: Win11 DWM требует overrideredirect через after(100, ...).
+
+        Копия паттерна из OverlayManager._init_overlay_style (без импорта — cross-phase
+        coupling избегаем умышленно).
+        """
+        try:
+            self._window.overrideredirect(True)
+        except tk.TclError as exc:
+            logger.debug("overrideredirect failed: %s", exc)
+            return
+        # Переприменить topmost (overrideredirect может сбросить)
+        try:
+            self._window.attributes("-topmost", self._settings.on_top)
+        except tk.TclError:
+            pass
+        # Rounded corners через GDI SetWindowRgn — Win7+, работает и Win10 и Win11.
+        # Hotfix 260421-0jb: DWM Win11-only API не работал на Win10 → углы были квадратные.
+        self._window.after(
+            self.DWM_CORNER_DELAY_MS, self._apply_window_region_rounded,
+        )
+
+    def _apply_window_region_rounded(self) -> None:
+        """Win7+: GDI SetWindowRgn для rounded corners.
+
+        Работает на Win10/Win11 одинаково (в отличие от DWMWCP_ROUND который
+        Win11-only). Silent fail — окно останется прямоугольным.
+
+        SetWindowRgn takes ownership of HRGN — вручную DeleteObject НЕ нужен.
+        Координаты `w+1`/`h+1` в CreateRoundRectRgn — exclusive-coordinate quirk:
+        без +1 правый/нижний край обрезается на 1px.
+        """
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
+            w = self._window.winfo_width()
+            h = self._window.winfo_height()
+            if w <= 1 or h <= 1:
+                # Окно ещё не получило размеры — повторим после idle
+                self._window.after_idle(self._apply_window_region_rounded)
+                return
+            r = self.WINDOW_CORNER_RADIUS
+            # CreateRoundRectRgn(x1, y1, x2, y2, cornerWidth, cornerHeight)
+            rgn = ctypes.windll.gdi32.CreateRoundRectRgn(
+                0, 0, w + 1, h + 1, r, r,
+            )
+            # SetWindowRgn(hwnd, hrgn, bRedraw=True)
+            ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
+            logger.debug(
+                "MainWindow rounded corners applied via SetWindowRgn "
+                "(w=%d, h=%d, r=%d)", w, h, r,
+            )
+        except Exception as exc:
+            logger.debug("SetWindowRgn failed (non-Windows?): %s", exc)
+
+    def _build_title_bar(self, parent: ctk.CTkFrame) -> None:
+        """Кастомная шапка 28px: 3px forest-полоса, заголовок 'Еженедельник', ✕.
+
+        Drag-логика привязывается к self._title_bar и self._title_label (но НЕ к ✕).
+        ✕ → self._on_close (тот же путь что WM_DELETE_WINDOW).
+        """
+        palette_bg = self._theme.get("bg_primary")
+        palette_sep = self._theme.get("bg_tertiary")
+        palette_accent = self._theme.get("accent_brand")
+        palette_text = self._theme.get("text_secondary")
+        palette_close = self._theme.get("text_tertiary")
+
+        # Контейнер шапки
+        self._title_bar = ctk.CTkFrame(
+            parent, height=self.TITLE_BAR_HEIGHT,
+            fg_color=palette_bg, corner_radius=0,
+        )
+        self._title_bar.pack(fill="x", side="top")
+        self._title_bar.pack_propagate(False)
+
+        # 3px accent strip слева
+        self._title_accent_strip = ctk.CTkFrame(
+            self._title_bar, width=self.ACCENT_STRIP_WIDTH,
+            fg_color=palette_accent, corner_radius=0,
+        )
+        self._title_accent_strip.pack(side="left", fill="y")
+        self._title_accent_strip.pack_propagate(False)
+
+        # ✕ кнопка (пакается ПЕРВОЙ справа — до title_label — чтобы label занял оставшееся)
+        self._title_close_btn = ctk.CTkLabel(
+            self._title_bar, text="✕", width=self.TITLE_BAR_HEIGHT,
+            height=self.TITLE_BAR_HEIGHT,
+            fg_color="transparent", text_color=palette_close,
+            cursor="hand2", font=FONTS["caption"],
+        )
+        self._title_close_btn.pack(side="right")
+        self._title_close_btn.bind("<Button-1>", lambda e: self._on_close())
+        # Hover: destructive-clay + bg_secondary background
+        self._title_close_btn.bind(
+            "<Enter>",
+            lambda e: self._title_close_btn.configure(
+                text_color=self._theme.get("accent_overdue"),
+                fg_color=self._theme.get("bg_secondary"),
+            ),
+        )
+        self._title_close_btn.bind(
+            "<Leave>",
+            lambda e: self._title_close_btn.configure(
+                text_color=self._theme.get("text_tertiary"),
+                fg_color="transparent",
+            ),
+        )
+
+        # Заголовок (анкор left с отступом 10px от accent strip)
+        self._title_label = ctk.CTkLabel(
+            self._title_bar, text="Еженедельник",
+            fg_color="transparent", text_color=palette_text,
+            font=FONTS["caption"], anchor="w",
+        )
+        self._title_label.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+        # 1px separator border-bottom
+        self._title_separator = ctk.CTkFrame(
+            parent, height=1, fg_color=palette_sep, corner_radius=0,
+        )
+        self._title_separator.pack(fill="x", side="top")
+
+        # Drag bindings: на контейнер шапки И заголовок (НЕ на ✕ — он свой обработчик имеет)
+        for w in (self._title_bar, self._title_label, self._title_accent_strip):
+            w.bind("<ButtonPress-1>", self._on_title_drag_start)
+            w.bind("<B1-Motion>", self._on_title_drag_motion)
+            w.bind("<ButtonRelease-1>", self._on_title_drag_end)
+
+    def _on_title_drag_start(self, event) -> None:
+        """Запомнить offset курсор→левый-верхний-угол окна."""
+        try:
+            self._title_drag_offset_x = event.x_root - self._window.winfo_x()
+            self._title_drag_offset_y = event.y_root - self._window.winfo_y()
+        except tk.TclError:
+            pass
+
+    def _on_title_drag_motion(self, event) -> None:
+        """Переместить окно за курсором. Не зажимаем в bounds — окно большое,
+        virtual desktop clamp тут излишен (overlay это оправданно 56px).
+        """
+        try:
+            new_x = event.x_root - self._title_drag_offset_x
+            new_y = event.y_root - self._title_drag_offset_y
+            self._window.geometry(f"+{new_x}+{new_y}")
+        except tk.TclError:
+            pass
+
+    def _on_title_drag_end(self, event) -> None:
+        """Persist позицию через SettingsStore — тот же путь что _save_window_state."""
+        self._save_window_state()

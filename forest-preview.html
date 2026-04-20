@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Forest — превью рефакторинга (v2, с реальными деталями)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 24px 80px;
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    background: #242428;
+    color: #e6e6e6;
+    min-height: 100vh;
+  }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 6px; color: #f4f4f4; }
+  .sub { font-size: 12px; color: #9a9a9a; margin: 0 0 28px; line-height: 1.55; max-width: 920px; }
+  .section {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 1px solid #3a3a3e;
+  }
+  .section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  .section-title {
+    font-size: 15px; font-weight: 500; margin: 0 0 4px; color: #f4f4f4;
+  }
+  .section-desc {
+    font-size: 12px; color: #8a8a8a; margin: 0 0 18px; line-height: 1.5; max-width: 820px;
+  }
+  .row-labels {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-bottom: 12px;
+  }
+  .row-labels > div {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #8a8a8a;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  .sandbox {
+    background: linear-gradient(135deg, #b8a982 0%, #9a8a65 100%);
+    border-radius: 14px;
+    padding: 24px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 620px;
+    position: relative;
+  }
+  .sandbox.dark {
+    background: linear-gradient(135deg, #1a1f1c 0%, #0e1310 100%);
+  }
+  .sandbox.small { min-height: 280px; align-items: center; }
+  .sandbox.dialog-box { min-height: 420px; align-items: center; }
+  .caption {
+    position: absolute;
+    bottom: 10px;
+    left: 14px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ============ БАЗОВЫЕ ТОКЕНЫ FOREST ============ */
+  .fl { /* forest-light */
+    --bg-primary:        #EEE9DC;
+    --bg-elevated:       #F5F0E3;
+    --bg-overlay-square: #F2EDE0;
+    --text-primary:      #2E2B24;
+    --text-secondary:    #6A6558;
+    --text-tertiary:     #9A958A;
+    --text-disabled:     #9A958A;
+    --border-subtle:     #E1DACB;
+    --border-default:    #D9D1BF;
+    --border-emphasis:   #CEC4AE;
+    --accent-forest:     #1E5239;
+    --accent-forest-dim: #234E3A;
+    --accent-forest-tint:#E2E0D2;
+    --accent-on-forest:  #EEE9DC;
+    --destructive-clay:  #9E6A5A;
+    color: var(--text-primary);
+  }
+  .fd { /* forest-dark */
+    --bg-primary:        #161E1A;
+    --bg-elevated:       #202A24;
+    --bg-overlay-square: #1B2420;
+    --text-primary:      #E6E3D5;
+    --text-secondary:    #A5A89A;
+    --text-tertiary:     #6E7168;
+    --text-disabled:     #6E7168;
+    --border-subtle:     #202A24;
+    --border-default:    #2C3830;
+    --border-emphasis:   #36463C;
+    --accent-forest:     #5E9E7A;
+    --accent-forest-dim: #6BAF8A;
+    --accent-forest-tint:#1B2620;
+    --accent-on-forest:  #161E1A;
+    --destructive-clay:  #B87D6F;
+    color: var(--text-primary);
+  }
+
+  /* ============ ГЛАВНОЕ ОКНО 460×600 ============ */
+  .main-window {
+    width: 460px;
+    border-radius: 12px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-primary);
+    overflow: hidden;
+    font-size: 13px;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+  }
+
+  /* Week header */
+  .week-header {
+    height: 44px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .arrow-btn {
+    width: 32px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .arrow-btn:hover { color: var(--accent-forest); background: var(--bg-elevated); }
+  .week-title-wrap {
+    flex: 1;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .week-title {
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .week-dates {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .today-btn {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .today-btn:hover {
+    border-color: var(--accent-forest);
+    color: var(--accent-forest);
+  }
+
+  /* Archive banner */
+  .archive-banner {
+    height: 32px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .archive-banner .back {
+    color: var(--accent-forest);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* Day section */
+  .scroll-area {
+    padding: 4px 8px 10px;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  .day-section {
+    border-radius: 10px;
+    margin-top: 4px;
+    background: transparent;
+  }
+  .day-section.today {
+    background: var(--accent-forest-tint);
+  }
+  .day-header {
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 10px 0 0;
+  }
+  .day-strip {
+    width: 3px;
+    height: 22px;
+    margin: 0 8px 0 0;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .day-section.today .day-strip { background: var(--accent-forest); }
+  .day-section:not(.today) .day-strip { background: transparent; }
+  .day-label {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .day-section.today .day-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .day-label .dot {
+    color: var(--text-tertiary);
+    margin: 0 6px;
+  }
+  .day-count {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-right: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .plus-btn {
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  .plus-btn:hover { color: var(--accent-forest); background: var(--bg-elevated); }
+
+  /* Day body */
+  .day-body {
+    padding: 2px 10px 6px 14px;
+  }
+  .task {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-radius: 6px;
+  }
+  .task:hover { background: var(--bg-elevated); }
+  .day-section.today .task:hover { background: rgba(30, 82, 57, 0.06); }
+  .fd .day-section.today .task:hover { background: rgba(94, 158, 122, 0.08); }
+
+  .checkbox {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid var(--text-secondary);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .checkbox.done {
+    background: var(--accent-forest);
+    border-color: var(--accent-forest);
+    color: var(--accent-on-forest);
+  }
+  .checkbox.overdue {
+    border-color: var(--destructive-clay);
+  }
+
+  .task-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .task-time {
+    font-family: "Cascadia Mono", "Consolas", monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .task.done .task-text {
+    text-decoration: line-through;
+    color: var(--text-disabled);
+  }
+  .task.done .task-time { display: none; }
+  .task.overdue .task-text { color: var(--destructive-clay); }
+  .task.overdue .task-time { color: var(--destructive-clay); }
+
+  .task-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.55;
+  }
+  .task:hover .task-actions { opacity: 1; }
+  .task-icon-btn {
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .task-icon-btn:hover {
+    color: var(--accent-forest);
+    background: var(--bg-elevated);
+  }
+  .task-icon-btn.delete:hover {
+    color: var(--destructive-clay);
+  }
+  .task.done .task-icon-btn { color: var(--text-tertiary); }
+
+  /* Inline entry */
+  .inline-entry {
+    margin-top: 4px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--accent-forest);
+    background: var(--bg-elevated);
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+  }
+  .inline-entry .caret {
+    width: 1.5px;
+    height: 14px;
+    background: var(--accent-forest);
+    margin-left: 2px;
+    animation: blink 1s infinite;
+  }
+  .inline-entry .ph {
+    color: var(--text-tertiary);
+    font-style: normal;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Undo toast */
+  .undo-toast-wrap {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+  }
+  .undo-toast {
+    width: 280px;
+    height: 44px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+  .undo-toast .msg { color: var(--text-primary); }
+  .undo-toast .msg::before { content: "⟲  "; color: var(--text-tertiary); }
+  .undo-toast .undo-link {
+    color: var(--accent-forest);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .undo-bar {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: var(--accent-forest);
+  }
+
+  /* ============ INLINE EDIT CARD (разворачивается в списке) ============ */
+  .edit-card {
+    margin: 6px 0 4px;
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    border: 1.5px solid var(--accent-forest);
+    padding: 12px 12px 10px 14px;
+    position: relative;
+    box-shadow: 0 2px 12px rgba(30, 82, 57, 0.08);
+    animation: card-expand 0.2s ease-out;
+  }
+  .fd .edit-card {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  @keyframes card-expand {
+    from { opacity: 0; transform: translateY(-4px); max-height: 40px; }
+    to   { opacity: 1; transform: translateY(0); max-height: 400px; }
+  }
+  .edit-card::before {
+    content: "";
+    position: absolute;
+    top: 10px; bottom: 10px; left: -1.5px;
+    width: 3px;
+    background: var(--accent-forest);
+    border-radius: 2px;
+  }
+  .edit-textbox {
+    width: 100%;
+    min-height: 56px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 10px;
+    font-family: inherit;
+  }
+  .edit-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .edit-row-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    min-width: 52px;
+    font-weight: 500;
+  }
+  .pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .pill {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border-default);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .pill:hover { background: var(--bg-primary); border-color: var(--border-emphasis); color: var(--text-primary); }
+  .pill.active {
+    background: var(--accent-forest);
+    border-color: var(--accent-forest);
+    color: var(--accent-on-forest);
+  }
+  .pill.muted {
+    border-style: dashed;
+    color: var(--text-tertiary);
+  }
+  .pill .num {
+    font-family: "Cascadia Mono", monospace;
+    font-size: 10px;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+  }
+  .pill.active .num { opacity: 0.85; }
+  .pill-sep {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border-subtle);
+    margin: 2px 4px;
+  }
+
+  .edit-time-compact {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .edit-time-compact .t {
+    height: 26px;
+    width: 44px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: "Cascadia Mono", monospace;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .edit-time-compact .t.dim { color: var(--text-tertiary); }
+  .edit-time-compact .t-sep { color: var(--text-secondary); }
+  .edit-time-compact .t-clear {
+    width: 24px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .edit-time-compact .t-clear:hover { color: var(--destructive-clay); background: var(--bg-primary); }
+
+  .edit-done {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin: 2px 0 10px;
+    cursor: pointer;
+  }
+  .edit-done .checkbox { width: 16px; height: 16px; font-size: 10px; }
+
+  .edit-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+    margin-top: 2px;
+  }
+  .edit-buttons .btn {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 11px;
+  }
+  .edit-buttons .btn-primary { min-width: 96px; }
+
+  /* ============ EDIT DIALOG 420×320 (fallback для узких окон) ============ */
+  .dialog {
+    width: 420px;
+    border-radius: 12px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-primary);
+    padding: 16px;
+    font-size: 13px;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+  }
+  .d-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  .d-textbox {
+    width: 100%;
+    height: 60px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    margin-bottom: 14px;
+    line-height: 1.4;
+  }
+  .d-grid {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .d-col-day { flex: 1; }
+  .d-col-time { flex-shrink: 0; }
+  .d-select {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 160px;
+  }
+  .d-select .chev { color: var(--text-tertiary); font-size: 11px; margin-left: 8px; }
+  .d-time-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .d-time {
+    width: 62px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-family: "Cascadia Mono", monospace;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .d-time.dim { color: var(--text-tertiary); }
+  .d-time .chev { color: var(--text-tertiary); font-size: 10px; }
+  .d-clear {
+    width: 26px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .d-clear:hover { background: var(--bg-elevated); color: var(--destructive-clay); }
+  .d-done-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .d-done-row .label { font-size: 12px; color: var(--text-primary); }
+  .d-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary {
+    background: var(--accent-forest);
+    color: var(--accent-on-forest);
+    min-width: 110px;
+  }
+  .btn-primary:hover { background: var(--accent-forest-dim); }
+  .btn-secondary {
+    border-color: var(--border-default);
+    color: var(--text-secondary);
+    min-width: 80px;
+  }
+  .btn-danger {
+    color: var(--destructive-clay);
+    min-width: 90px;
+    border-color: transparent;
+  }
+  .btn-danger:hover { background: var(--bg-elevated); }
+
+  /* ============ QUICK CAPTURE POPUP 400×40 ============ */
+  .qc-popup {
+    width: 400px;
+    height: 40px;
+    background: var(--bg-elevated);
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .qc-strip {
+    width: 3px;
+    align-self: stretch;
+    background: var(--accent-forest);
+  }
+  .qc-input {
+    flex: 1;
+    padding: 0 12px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+  }
+  .qc-input .ph { color: var(--text-tertiary); }
+  .qc-popup.error { border-color: var(--destructive-clay); border-width: 2px; }
+
+  /* ============ OVERLAY 56×56 ============ */
+  .overlay-grid {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  .overlay-item { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .overlay-item .ov-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .overlay {
+    width: 56px; height: 56px;
+    border-radius: 12px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .overlay.flat {
+    background: var(--bg-overlay-square);
+    border: 1px solid var(--border-emphasis);
+    color: var(--text-primary);
+  }
+  .overlay.solid-forest {
+    background: var(--accent-forest);
+    color: var(--accent-on-forest);
+  }
+  .overlay .glyph {
+    font-size: 26px;
+    font-weight: 500;
+  }
+  .overlay .badge {
+    position: absolute;
+    top: -4px; right: -4px;
+    min-width: 18px; height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-forest);
+    color: var(--accent-on-forest);
+    border: 1.5px solid var(--bg-overlay-square);
+  }
+  .overlay .badge.overdue {
+    background: var(--destructive-clay);
+    animation: pulse-clay 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-clay {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  /* ============ UPDATE BANNER 340×96 ============ */
+  .update-banner {
+    width: 340px;
+    min-height: 96px;
+    border-radius: 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    padding: 12px 14px;
+    font-size: 13px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .ub-title { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+  .ub-status { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+  .ub-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ============ LOGIN DIALOG 380×280 ============ */
+  .login-dialog {
+    width: 380px;
+    min-height: 280px;
+    border-radius: 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    padding: 20px 24px;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+  }
+  .ld-title { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+  .ld-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+  .ld-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .ld-input.code {
+    text-align: center;
+    font-family: "Cascadia Mono", monospace;
+    font-size: 16px;
+    letter-spacing: 0.1em;
+  }
+  .ld-input .ph { color: var(--text-tertiary); }
+  .ld-status { font-size: 11px; color: var(--text-tertiary); height: 16px; margin-bottom: 10px; }
+  .ld-btn {
+    width: 100%;
+    height: 36px;
+    border-radius: 6px;
+    background: var(--accent-forest);
+    color: var(--accent-on-forest);
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+  }
+  .ld-btn-row { display: flex; gap: 8px; }
+  .ld-btn-row .back {
+    width: 100px;
+    background: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+  }
+  .ld-btn-row .submit { flex: 1; }
+
+  /* ============ TASK STATE ROW (hover demo) ============ */
+  .state-demo {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .state-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    padding-left: 2px;
+  }
+
+  /* ============ ПАЛИТРА ============ */
+  .palette {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    background: #2f2f33;
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .palette h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #a0a0a0;
+    margin: 0 0 12px;
+    font-weight: 500;
+  }
+  .swatch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    color: #c0c0c0;
+  }
+  .swatch {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  .swatch-row code {
+    font-family: "Cascadia Mono", monospace;
+    color: #e6e6e6;
+    min-width: 64px;
+  }
+  .swatch-row .nm { color: #9aa; min-width: 150px; }
+
+  .footnote {
+    font-size: 11px;
+    color: #888;
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>Forest — превью v2 (по реальному UI проекта)</h1>
+<p class="sub">
+Сделано после детального аудита: учтены <b>edit/delete иконки</b> справа от задачи, <b>plus-кнопка</b> и inline-entry в дне, кнопка <b>«Сегодня»</b> и <b>archive-banner</b> в шапке, <b>undo-toast</b>, <b>quick-capture popup</b>, <b>update-banner</b>, <b>login-dialog</b> в двух шагах, реальные размеры (460×600, 56×56 overlay, 22×22 checkbox упрощён до 18, 420×320 dialog). Чекбокс done — бутылочный зелёный, просрочка и удаление — clay, никакого синего и алого.
+</p>
+
+<!-- ============ MAIN WINDOW ============ -->
+<div class="section">
+  <h3 class="section-title">1. Главное окно — стандартное состояние</h3>
+  <p class="section-desc">Текущая неделя. Видны все 7 дней. Вторник — сегодня (accent-bar + tint). У каждой задачи справа ✎ и 🗑 (в статике полупрозрачные — при hover на строку становятся контрастнее).</p>
+  <div class="row-labels"><div>Forest · Light</div><div>Forest · Dark</div></div>
+  <div class="grid-2">
+
+    <!-- LIGHT -->
+    <div class="sandbox fl">
+      <div class="main-window">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 16</span>
+            <span class="week-dates">· 14–20 апр</span>
+          </div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="scroll-area">
+          <!-- Пн: 2 задачи -->
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пн 14</div>
+              <div class="day-count">2</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Встреча с поставщиком</div>
+                <div class="task-time">10:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Выгрузка остатков</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Вт: today -->
+          <div class="day-section today">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 15 <span class="dot">·</span> сегодня</div>
+              <div class="day-count">3 задачи</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Позвонить Иванову по счёту</div>
+                <div class="task-time">14:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Отправить договор</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Проверить склад на Ленина</div>
+                <div class="task-time">16:30</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Ср: пусто -->
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 16</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <!-- Чт: overdue пример -->
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Чт 17</div>
+              <div class="day-count">1</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task overdue">
+                <div class="checkbox overdue"></div>
+                <div class="task-text">Не забыть отчёт за март</div>
+                <div class="task-time">09:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Пт: 4 -->
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пт 18</div>
+              <div class="day-count">4</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <!-- Сб / Вс -->
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Сб 19</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вс 20</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">Forest · Light · default state</div>
+    </div>
+
+    <!-- DARK (копия структуры) -->
+    <div class="sandbox dark fd">
+      <div class="main-window">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 16</span>
+            <span class="week-dates">· 14–20 апр</span>
+          </div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="scroll-area">
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пн 14</div>
+              <div class="day-count">2</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Встреча с поставщиком</div>
+                <div class="task-time">10:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Выгрузка остатков</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="day-section today">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 15 <span class="dot">·</span> сегодня</div>
+              <div class="day-count">3 задачи</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Позвонить Иванову по счёту</div>
+                <div class="task-time">14:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Отправить договор</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Проверить склад на Ленина</div>
+                <div class="task-time">16:30</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 16</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Чт 17</div>
+              <div class="day-count">1</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task overdue">
+                <div class="checkbox overdue"></div>
+                <div class="task-text">Не забыть отчёт за март</div>
+                <div class="task-time">09:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пт 18</div>
+              <div class="day-count">4</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Сб 19</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вс 20</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">Forest · Dark · default state</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ INLINE ENTRY + ARCHIVE + UNDO ============ -->
+<div class="section">
+  <h3 class="section-title">2. Inline-ввод задачи + режим архива + undo-toast</h3>
+  <p class="section-desc">Слева — после клика на ＋ в дне открылся inline-entry (зелёная рамка, каретка моргает). Справа — прошлая неделя (archive banner сверху, «Сегодня» справа в шапке, цвета слегка приглушены), внизу всплыл undo-toast после удаления.</p>
+  <div class="row-labels"><div>Forest · Light · inline-add активен</div><div>Forest · Light · archive + undo</div></div>
+  <div class="grid-2">
+
+    <!-- INLINE -->
+    <div class="sandbox fl">
+      <div class="main-window">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 16</span>
+            <span class="week-dates">· 14–20 апр</span>
+          </div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="scroll-area">
+          <div class="day-section today">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 15 <span class="dot">·</span> сегодня</div>
+              <div class="day-count">3 задачи</div>
+              <div class="plus-btn" style="color: var(--accent-forest);">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Позвонить Иванову по счёту</div>
+                <div class="task-time">14:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Отправить договор</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Проверить склад на Ленина</div>
+                <div class="task-time">16:30</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+              <div class="inline-entry">
+                <span>14:30 Забрать посылку</span>
+                <div class="caret"></div>
+              </div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 16</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">inline-entry: парсит «14:30 Забрать посылку» → время + текст</div>
+    </div>
+
+    <!-- ARCHIVE -->
+    <div class="sandbox fl">
+      <div class="main-window" style="opacity: 0.82;">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 15</span>
+            <span class="week-dates">· 7–13 апр</span>
+          </div>
+          <div class="today-btn">Сегодня</div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="archive-banner">
+          <span>📦 &nbsp; Архив недели</span>
+          <span class="back">Вернуться →</span>
+        </div>
+        <div class="scroll-area">
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пн 7</div>
+              <div class="day-count">3</div>
+              <div class="plus-btn" style="opacity:0.3;">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Инвентаризация</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                </div>
+              </div>
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Планёрка</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                </div>
+              </div>
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Перезвонить Ольге</div>
+                <div class="task-time">15:00</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 8</div>
+              <div class="day-count">2</div>
+              <div class="plus-btn" style="opacity:0.3;">＋</div>
+            </div>
+          </div>
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 9</div>
+              <div class="day-count">4</div>
+              <div class="plus-btn" style="opacity:0.3;">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="undo-toast-wrap">
+        <div class="undo-toast">
+          <span class="msg">Задача удалена</span>
+          <span class="undo-link">Отменить</span>
+          <div class="undo-bar" style="width: 62%;"></div>
+        </div>
+      </div>
+      <div class="caption">archive: добавление заблокировано, палитра приглушена</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ TASK STATES ============ -->
+<div class="section">
+  <h3 class="section-title">3. Состояния задачи — все варианты рядом</h3>
+  <p class="section-desc">Чтобы видеть какой цвет даёт каждое состояние. Hover показан с полными иконками справа, у остальных — приглушены.</p>
+  <div class="row-labels"><div>Forest · Light</div><div>Forest · Dark</div></div>
+  <div class="grid-2">
+    <div class="sandbox fl small" style="flex-direction: column; gap: 10px;">
+      <div style="width: 360px; display: flex; flex-direction: column; gap: 10px;">
+
+        <div class="state-label">default (не тронута)</div>
+        <div class="state-demo">
+          <div class="task">
+            <div class="checkbox"></div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-time">14:00</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">hover — иконки проявились</div>
+        <div class="state-demo">
+          <div class="task" style="background: var(--bg-elevated);">
+            <div class="checkbox"></div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-time">14:00</div>
+            <div class="task-actions" style="opacity: 1;">
+              <div class="task-icon-btn" style="color: var(--accent-forest); background: var(--bg-primary);">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">done — галочка forest, текст зачёркнут</div>
+        <div class="state-demo">
+          <div class="task done">
+            <div class="checkbox done">✓</div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">overdue — clay, без зачёркивания</div>
+        <div class="state-demo">
+          <div class="task overdue">
+            <div class="checkbox overdue"></div>
+            <div class="task-text">Не забыть отчёт</div>
+            <div class="task-time">09:00</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="sandbox dark fd small" style="flex-direction: column; gap: 10px;">
+      <div style="width: 360px; display: flex; flex-direction: column; gap: 10px;">
+
+        <div class="state-label">default</div>
+        <div class="state-demo">
+          <div class="task">
+            <div class="checkbox"></div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-time">14:00</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">hover</div>
+        <div class="state-demo">
+          <div class="task" style="background: var(--bg-elevated);">
+            <div class="checkbox"></div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-time">14:00</div>
+            <div class="task-actions" style="opacity: 1;">
+              <div class="task-icon-btn" style="color: var(--accent-forest); background: var(--bg-primary);">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">done</div>
+        <div class="state-demo">
+          <div class="task done">
+            <div class="checkbox done">✓</div>
+            <div class="task-text">Позвонить Иванову</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-label">overdue</div>
+        <div class="state-demo">
+          <div class="task overdue">
+            <div class="checkbox overdue"></div>
+            <div class="task-text">Не забыть отчёт</div>
+            <div class="task-time">09:00</div>
+            <div class="task-actions">
+              <div class="task-icon-btn">✎</div>
+              <div class="task-icon-btn delete">🗑</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INLINE EDIT ============ -->
+<div class="section">
+  <h3 class="section-title">4. Inline-редактирование — разворачивается прямо в списке</h3>
+  <p class="section-desc">Клик на ✎ (или двойной клик по тексту задачи) превращает строку в «распахнутую» карточку: акцентная рамка forest + 3px полоска слева, сверху textbox с многострочным вводом, затем день (пилюли: «Сегодня», «Завтра», потом все 7 дней недели), компактный time (HH:MM + ✕), «Выполнено», и три кнопки внизу. Соседние задачи остаются видны — контекст не теряется. Esc = отмена, Ctrl+Enter = сохранить.</p>
+  <div class="row-labels"><div>Forest · Light · редактируется задача в today-секции</div><div>Forest · Dark</div></div>
+  <div class="grid-2">
+
+    <!-- LIGHT INLINE EDIT -->
+    <div class="sandbox fl">
+      <div class="main-window">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 16</span>
+            <span class="week-dates">· 14–20 апр</span>
+          </div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="scroll-area">
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пн 14</div>
+              <div class="day-count">1</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Выгрузка остатков</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="day-section today">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 15 <span class="dot">·</span> сегодня</div>
+              <div class="day-count">3 задачи</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+
+              <!-- обычная соседняя задача -->
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Отправить договор</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+
+              <!-- РАСКРЫТАЯ ЗАДАЧА — режим редактирования -->
+              <div class="edit-card">
+                <textarea class="edit-textbox">Позвонить Иванову по поводу счёта за март, согласовать срок оплаты</textarea>
+
+                <div class="edit-row">
+                  <span class="edit-row-label">День</span>
+                  <div class="pills">
+                    <div class="pill active">Сегодня</div>
+                    <div class="pill">Завтра</div>
+                    <div class="pill-sep"></div>
+                    <div class="pill">Пн <span class="num">14</span></div>
+                    <div class="pill">Ср <span class="num">16</span></div>
+                    <div class="pill">Чт <span class="num">17</span></div>
+                    <div class="pill">Пт <span class="num">18</span></div>
+                  </div>
+                </div>
+
+                <div class="edit-row">
+                  <span class="edit-row-label">Время</span>
+                  <div class="edit-time-compact">
+                    <div class="t">14</div>
+                    <span class="t-sep">:</span>
+                    <div class="t">00</div>
+                    <div class="t-clear" title="Убрать время">✕</div>
+                  </div>
+                </div>
+
+                <label class="edit-done">
+                  <div class="checkbox"></div>
+                  <span>Выполнено</span>
+                </label>
+
+                <div class="edit-buttons">
+                  <button class="btn btn-danger">🗑 Удалить</button>
+                  <div style="display: flex; gap: 6px;">
+                    <button class="btn btn-secondary">Отмена</button>
+                    <button class="btn btn-primary">Сохранить</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- задача после редактируемой -->
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Проверить склад на Ленина</div>
+                <div class="task-time">16:30</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 16</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">раскрытая карточка живёт в списке — задача сверху и снизу на местах</div>
+    </div>
+
+    <!-- DARK INLINE EDIT -->
+    <div class="sandbox dark fd">
+      <div class="main-window">
+        <div class="week-header">
+          <div class="arrow-btn">◀</div>
+          <div class="week-title-wrap">
+            <span class="week-title">Неделя 16</span>
+            <span class="week-dates">· 14–20 апр</span>
+          </div>
+          <div class="arrow-btn">▶</div>
+        </div>
+        <div class="scroll-area">
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Пн 14</div>
+              <div class="day-count">1</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Выгрузка остатков</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="day-section today">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Вт 15 <span class="dot">·</span> сегодня</div>
+              <div class="day-count">3 задачи</div>
+              <div class="plus-btn">＋</div>
+            </div>
+            <div class="day-body">
+              <div class="task done">
+                <div class="checkbox done">✓</div>
+                <div class="task-text">Отправить договор</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+
+              <div class="edit-card">
+                <textarea class="edit-textbox">Позвонить Иванову по поводу счёта за март, согласовать срок оплаты</textarea>
+
+                <div class="edit-row">
+                  <span class="edit-row-label">День</span>
+                  <div class="pills">
+                    <div class="pill active">Сегодня</div>
+                    <div class="pill">Завтра</div>
+                    <div class="pill-sep"></div>
+                    <div class="pill">Пн <span class="num">14</span></div>
+                    <div class="pill">Ср <span class="num">16</span></div>
+                    <div class="pill">Чт <span class="num">17</span></div>
+                    <div class="pill">Пт <span class="num">18</span></div>
+                  </div>
+                </div>
+
+                <div class="edit-row">
+                  <span class="edit-row-label">Время</span>
+                  <div class="edit-time-compact">
+                    <div class="t">14</div>
+                    <span class="t-sep">:</span>
+                    <div class="t">00</div>
+                    <div class="t-clear">✕</div>
+                  </div>
+                </div>
+
+                <label class="edit-done">
+                  <div class="checkbox"></div>
+                  <span>Выполнено</span>
+                </label>
+
+                <div class="edit-buttons">
+                  <button class="btn btn-danger">🗑 Удалить</button>
+                  <div style="display: flex; gap: 6px;">
+                    <button class="btn btn-secondary">Отмена</button>
+                    <button class="btn btn-primary">Сохранить</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="task">
+                <div class="checkbox"></div>
+                <div class="task-text">Проверить склад на Ленина</div>
+                <div class="task-time">16:30</div>
+                <div class="task-actions">
+                  <div class="task-icon-btn">✎</div>
+                  <div class="task-icon-btn delete">🗑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="day-section">
+            <div class="day-header">
+              <div class="day-strip"></div>
+              <div class="day-label">Ср 16</div>
+              <div class="day-count">—</div>
+              <div class="plus-btn">＋</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">Forest · Dark · inline edit — тот же UX в тёмной теме</div>
+    </div>
+
+  </div>
+
+  <p class="footnote" style="margin-top: 24px;">
+    <b>UX-решения:</b>
+    <br>• <b>Одна карточка за раз.</b> Клик на ✎ у другой задачи автоматически сохраняет текущую и разворачивает новую — не будет двух открытых редакторов.
+    <br>• <b>День: пилюли, не dropdown.</b> «Сегодня» / «Завтра» + 7 дней недели рядом → один клик вместо двух. Активная — filled forest, остальные — outline. Помещается в ширину 460px.
+    <br>• <b>Время компактное.</b> Две mono-ячейки HH : MM + ✕. Клик на ячейку → маленький popover с числами (не dropdown).
+    <br>• <b>Удалить — clay-кнопка слева.</b> Визуально «опаснее» других, но не кричит. При клике — сразу отменяемое удаление через undo-toast (уже есть в проекте).
+    <br>• <b>Анимация раскрытия:</b> 200ms ease-out, лёгкий fade + expand. Другие задачи сдвигаются плавно (FLIP-подобно, но простая CSS-анимация tkinter-friendly: просто pack_propagate срабатывает естественно).
+    <br>• <b>Сохранение:</b> Ctrl+Enter, клик вне карточки, или кнопка. Esc — отмена без сохранения. Потеря изменений при переключении недели — no-op (автосохранение при уходе).
+    <br>• <b>Fallback для узких окон:</b> если ширина окна &lt; 380px (редко, у тебя min 320) — inline не влезет, откатываемся на прежний модальный <code>EditDialog</code> (оставлен в секции 5 ниже).
+  </p>
+
+  <p class="footnote">
+    <b>Что в коде:</b> <code>TaskWidget</code> получает новое состояние <code>_edit_mode: bool</code>. При True вместо row с text/actions рендерится inline <code>_build_edit_view()</code>, при False — привычный row. Переключение не пересоздаёт TaskWidget (чтобы drag-n-drop state и hover-bindings не ломались). В <code>DaySection</code> трекаем <code>_editing_task_id: Optional[str]</code> — чтобы «одна карточка за раз». Старый <code>EditDialog</code> оставляем как функцию, вызов только в fallback-случае.
+  </p>
+</div>
+
+<!-- ============ EDIT DIALOG (fallback) ============ -->
+<div class="section">
+  <h3 class="section-title">5. Edit dialog — fallback для очень узких окон (< 380px)</h3>
+  <p class="section-desc">Модальный вариант оставляем для случаев, когда inline-карточка не помещается. Textbox для многострочного текста, дропдаун дня («Сегодня / Завтра / Пн 14 / …»), два time-дропдауна HH / MM + ✕ сброс времени, чекбокс «Выполнено», три кнопки (Удалить clay-текстом без фона, Отмена бордер, Сохранить forest-filled).</p>
+  <div class="row-labels"><div>Forest · Light</div><div>Forest · Dark</div></div>
+  <div class="grid-2">
+
+    <div class="sandbox fl dialog-box">
+      <div class="dialog">
+        <div class="d-label">Задача</div>
+        <div class="d-textbox">Позвонить Иванову по поводу счёта за март, согласовать срок оплаты</div>
+
+        <div class="d-grid">
+          <div class="d-col-day">
+            <div class="d-label">День</div>
+            <div class="d-select">
+              <span>Сегодня · вт 15 апр</span>
+              <span class="chev">▾</span>
+            </div>
+          </div>
+          <div class="d-col-time">
+            <div class="d-label">Время</div>
+            <div class="d-time-row">
+              <div class="d-time"><span>14</span><span class="chev">▾</span></div>
+              <span style="color: var(--text-secondary);">:</span>
+              <div class="d-time"><span>00</span><span class="chev">▾</span></div>
+              <div class="d-clear">✕</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-done-row">
+          <div class="checkbox"></div>
+          <div class="label">Выполнено</div>
+        </div>
+
+        <div class="d-buttons">
+          <button class="btn btn-danger">Удалить</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary">Отмена</button>
+            <button class="btn btn-primary">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sandbox dark fd dialog-box">
+      <div class="dialog">
+        <div class="d-label">Задача</div>
+        <div class="d-textbox">Позвонить Иванову по поводу счёта за март, согласовать срок оплаты</div>
+
+        <div class="d-grid">
+          <div class="d-col-day">
+            <div class="d-label">День</div>
+            <div class="d-select">
+              <span>Сегодня · вт 15 апр</span>
+              <span class="chev">▾</span>
+            </div>
+          </div>
+          <div class="d-col-time">
+            <div class="d-label">Время</div>
+            <div class="d-time-row">
+              <div class="d-time"><span>14</span><span class="chev">▾</span></div>
+              <span style="color: var(--text-secondary);">:</span>
+              <div class="d-time"><span>00</span><span class="chev">▾</span></div>
+              <div class="d-clear">✕</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-done-row">
+          <div class="checkbox"></div>
+          <div class="label">Выполнено</div>
+        </div>
+
+        <div class="d-buttons">
+          <button class="btn btn-danger">Удалить</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary">Отмена</button>
+            <button class="btn btn-primary">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ OVERLAY + QUICK CAPTURE ============ -->
+<div class="section">
+  <h3 class="section-title">5. Desktop overlay 56×56 + quick-capture popup</h3>
+  <p class="section-desc">Три состояния плашки: пусто (＋), обычное (✓ + счётчик forest), просрочка (✓ + бейдж clay с лёгкой пульсацией). Под ней — quick-capture popup (400×40, слева 3px стрип forest, справа поле ввода). Forest-решение: плашка НЕ градиент, а плоская — cream с forest-акцентами.</p>
+  <div class="row-labels"><div>Forest · Light</div><div>Forest · Dark</div></div>
+  <div class="grid-2">
+
+    <div class="sandbox fl small" style="flex-direction: column; gap: 32px;">
+      <div class="overlay-grid">
+        <div class="overlay-item">
+          <div class="overlay flat"><span class="glyph">＋</span></div>
+          <div class="ov-label">пусто</div>
+        </div>
+        <div class="overlay-item">
+          <div class="overlay flat">
+            <span class="glyph">✓</span>
+            <div class="badge">5</div>
+          </div>
+          <div class="ov-label">5 задач</div>
+        </div>
+        <div class="overlay-item">
+          <div class="overlay flat">
+            <span class="glyph">✓</span>
+            <div class="badge overdue">3</div>
+          </div>
+          <div class="ov-label">3 просрочено</div>
+        </div>
+      </div>
+      <div class="qc-popup">
+        <div class="qc-strip"></div>
+        <div class="qc-input"><span class="ph">Новая задача на сегодня...</span></div>
+      </div>
+    </div>
+
+    <div class="sandbox dark fd small" style="flex-direction: column; gap: 32px;">
+      <div class="overlay-grid">
+        <div class="overlay-item">
+          <div class="overlay flat"><span class="glyph">＋</span></div>
+          <div class="ov-label">пусто</div>
+        </div>
+        <div class="overlay-item">
+          <div class="overlay flat">
+            <span class="glyph">✓</span>
+            <div class="badge">5</div>
+          </div>
+          <div class="ov-label">5 задач</div>
+        </div>
+        <div class="overlay-item">
+          <div class="overlay flat">
+            <span class="glyph">✓</span>
+            <div class="badge overdue">3</div>
+          </div>
+          <div class="ov-label">3 просрочено</div>
+        </div>
+      </div>
+      <div class="qc-popup">
+        <div class="qc-strip"></div>
+        <div class="qc-input"><span class="ph">Новая задача на сегодня...</span></div>
+      </div>
+    </div>
+
+  </div>
+  <p class="footnote">
+    <b>Альтернатива:</b> если flat-cream плашка на рабочем столе теряется — можно сделать её solid-forest (фон <code>#1E5239</code>, cream-галочка, бейдж-счётчик белым кружком с тёмным текстом). В стиле Forest это работает: «зелёная лампа» становится самим знаком. Решим после того как увидишь на реальном экране.
+  </p>
+</div>
+
+<!-- ============ UPDATE BANNER + LOGIN ============ -->
+<div class="section">
+  <h3 class="section-title">6. Update banner + login dialog (2 шага)</h3>
+  <p class="section-desc">Верх-правый угол экрана — баннер доступного обновления. Внизу — окно авторизации через Telegram: ввод username → код из бота.</p>
+  <div class="row-labels"><div>Update banner · Light / Dark</div><div>Login dialog · шаг 1 / шаг 2</div></div>
+  <div class="grid-2">
+
+    <div class="sandbox fl small" style="flex-direction: column; gap: 24px; min-height: 360px;">
+      <div class="update-banner">
+        <div class="ub-title">Доступна версия 0.4.2</div>
+        <div class="ub-status">Текущая: 0.4.1</div>
+        <div class="ub-buttons">
+          <button class="btn btn-secondary">Позже</button>
+          <button class="btn btn-primary">Обновить</button>
+        </div>
+      </div>
+      <div style="background: #0e1310; padding: 16px; border-radius: 10px;" class="fd">
+        <div class="update-banner">
+          <div class="ub-title">Доступна версия 0.4.2</div>
+          <div class="ub-status">Скачано 42%…</div>
+          <div class="ub-buttons">
+            <button class="btn btn-secondary">Позже</button>
+            <button class="btn btn-primary" style="opacity: 0.6;">Скачиваю...</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sandbox fl small" style="flex-direction: column; gap: 20px; min-height: 360px;">
+      <div class="login-dialog">
+        <div class="ld-title">Вход через Telegram</div>
+        <div class="ld-desc">Введи свой Telegram username без собаки — бот пришлёт код подтверждения.</div>
+        <div class="ld-input"><span class="ph">username</span></div>
+        <div class="ld-status">&nbsp;</div>
+        <button class="ld-btn">Запросить код</button>
+      </div>
+      <div class="login-dialog">
+        <div class="ld-title">Код из Telegram</div>
+        <div class="ld-desc">Открой чат с @Jazzways_bot — там пришёл 6-значный код.</div>
+        <div class="ld-input code">1&nbsp;2&nbsp;3&nbsp;4&nbsp;5&nbsp;6</div>
+        <div class="ld-status">&nbsp;</div>
+        <div class="ld-btn-row">
+          <button class="ld-btn back">← Назад</button>
+          <button class="ld-btn submit">Войти</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ ПАЛИТРА ============ -->
+<div class="section">
+  <h3 class="section-title">7. Палитра Forest — семантические токены</h3>
+  <p class="section-desc">Полный список цветов, которые лягут в <code>client/ui/themes.py</code> как две словарных структуры <code>FOREST_LIGHT</code> и <code>FOREST_DARK</code>.</p>
+
+  <div class="palette">
+    <div>
+      <h4>Forest · Light</h4>
+      <div class="swatch-row"><span class="swatch" style="background:#EEE9DC"></span><code>#EEE9DC</code><span class="nm">bg-primary</span>льняной cream — фон окна</div>
+      <div class="swatch-row"><span class="swatch" style="background:#F5F0E3"></span><code>#F5F0E3</code><span class="nm">bg-elevated</span>поля ввода, hover</div>
+      <div class="swatch-row"><span class="swatch" style="background:#F2EDE0"></span><code>#F2EDE0</code><span class="nm">bg-overlay-square</span>плашка на десктопе</div>
+      <div class="swatch-row"><span class="swatch" style="background:#E2E0D2"></span><code>#E2E0D2</code><span class="nm">accent-forest-tint</span>подложка today</div>
+      <div class="swatch-row"><span class="swatch" style="background:#1E5239"></span><code>#1E5239</code><span class="nm">accent-forest</span>бутылочный зелёный</div>
+      <div class="swatch-row"><span class="swatch" style="background:#9E6A5A"></span><code>#9E6A5A</code><span class="nm">destructive-clay</span>удалить, просрочки</div>
+      <div class="swatch-row"><span class="swatch" style="background:#2E2B24"></span><code>#2E2B24</code><span class="nm">text-primary</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#6A6558"></span><code>#6A6558</code><span class="nm">text-secondary</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#9A958A"></span><code>#9A958A</code><span class="nm">text-tertiary/disabled</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#E1DACB"></span><code>#E1DACB</code><span class="nm">border-subtle</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#D9D1BF"></span><code>#D9D1BF</code><span class="nm">border-default</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#CEC4AE"></span><code>#CEC4AE</code><span class="nm">border-emphasis</span></div>
+    </div>
+    <div>
+      <h4>Forest · Dark</h4>
+      <div class="swatch-row"><span class="swatch" style="background:#161E1A"></span><code>#161E1A</code><span class="nm">bg-primary</span>тёмный хвойный (зелёный подтон!)</div>
+      <div class="swatch-row"><span class="swatch" style="background:#202A24"></span><code>#202A24</code><span class="nm">bg-elevated</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#1B2420"></span><code>#1B2420</code><span class="nm">bg-overlay-square</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#1B2620"></span><code>#1B2620</code><span class="nm">accent-forest-tint</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#5E9E7A"></span><code>#5E9E7A</code><span class="nm">accent-forest</span>осветлён</div>
+      <div class="swatch-row"><span class="swatch" style="background:#B87D6F"></span><code>#B87D6F</code><span class="nm">destructive-clay</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#E6E3D5"></span><code>#E6E3D5</code><span class="nm">text-primary</span>тёплый cream</div>
+      <div class="swatch-row"><span class="swatch" style="background:#A5A89A"></span><code>#A5A89A</code><span class="nm">text-secondary</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#6E7168"></span><code>#6E7168</code><span class="nm">text-tertiary/disabled</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#202A24"></span><code>#202A24</code><span class="nm">border-subtle</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#2C3830"></span><code>#2C3830</code><span class="nm">border-default</span></div>
+      <div class="swatch-row"><span class="swatch" style="background:#36463C"></span><code>#36463C</code><span class="nm">border-emphasis</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ЧТО МЕНЯЕТСЯ ============ -->
+<div class="section">
+  <h3 class="section-title">8. Что конкретно меняется в коде проекта</h3>
+  <p class="section-desc">Карта: какие файлы трогаем, что происходит.</p>
+  <div style="background: #2f2f33; border-radius: 10px; padding: 16px 20px; font-size: 12px; line-height: 1.65; color: #d4d4d4;">
+    <p><b>themes.py</b> — добавляем <code>forest_light</code> и <code>forest_dark</code> палитры. Ключи сохраняем те же (<code>bg_primary</code>, <code>accent_brand</code>, <code>accent_done</code>, <code>accent_overdue</code>) — тогда ни один виджет не нужно править, только карта цветов меняется. <br>
+    Маппинг семантики Forest → существующие ключи:
+    <br>— <code>bg_primary</code> ← <code>#EEE9DC</code> / <code>#161E1A</code>
+    <br>— <code>bg_secondary</code> ← <code>bg-elevated</code> (<code>#F5F0E3</code> / <code>#202A24</code>)
+    <br>— <code>bg_tertiary</code> ← <code>accent-forest-tint</code> (<code>#E2E0D2</code> / <code>#1B2620</code>) — на нём стоит today и archive banner
+    <br>— <code>accent_brand</code> ← <code>accent-forest</code> — заменит синий и в today-strip, и в QuickCapture, и в undo-link, и в arrow-hover
+    <br>— <code>accent_done</code> ← <code>accent-forest</code> (тот же) — done-галочка и accent сольются в один цвет, это фича Forest
+    <br>— <code>accent_overdue</code> ← <code>destructive-clay</code>
+    <br>— <code>text_primary/secondary/tertiary</code> — по карте выше
+    </p>
+
+    <p><b>icon_compose.py</b> (overlay) — заменяем захардкоженные <code>OVERLAY_BLUE_*</code> и <code>OVERLAY_RED_*</code> на forest-токены. Убираем градиент (или оставляем очень слабый forest → forest-dim). Pulse для overdue — между cream-квадратом и clay-бейджем.</p>
+
+    <p><b>task_widget.py</b> — ничего не трогаем если маппинг ключей сохранён. Проверим что done-чекбокс (который сейчас <code>accent_done</code>) ← зелёный forest, overdue (<code>accent_overdue</code>) ← clay.</p>
+
+    <p><b>day_section.py, week_navigation.py, edit_dialog.py, quick_capture.py, undo_toast.py, update_banner.py, login_dialog.py</b> — если всё читается через <code>ThemeManager.get()</code>, поменяются автоматически. Если где-то есть хардкод цвета — ловим и правим.</p>
+
+    <p><b>tray.py</b> (меню-бар) — добавляем пункт «Forest» в переключатель тем, делаем дефолтным.</p>
+
+    <p style="border-top: 1px solid #444; padding-top: 12px; margin-top: 12px;"><b>Порядок действий:</b>
+      <br>1. Добавить палитры <code>forest_light</code> / <code>forest_dark</code> в <code>themes.py</code>, включить как тему
+      <br>2. Перекрасить overlay icon_compose.py (flat + forest вместо синего градиента)
+      <br>3. Запустить, пройти все экраны — ловить захардкоженные цвета если остались
+      <br>4. Если на real-display плашка-cream теряется на светлом столе — сменить на solid-forest вариант (один ключ поменять)
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

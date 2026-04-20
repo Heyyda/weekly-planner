@@ -1,10 +1,11 @@
 """
-ThemeManager — 3 темы per UI-SPEC (light cream, dark warm, beige sepia) + subscriber pattern.
+ThemeManager — 5 тем (light cream, dark warm, beige sepia, forest_light, forest_dark) + subscriber pattern.
 
 Паттерн subscribe/notify избегает PITFALLS.md Pitfall 5: виджеты НЕ хардкодят цвета,
 а получают палитру через callback при смене темы. Live-switching без рестарта.
 
-Все hex-токены — verbatim из .planning/phases/03-overlay-system/03-UI-SPEC.md §Color Palette.
+Hex-токены light/dark/beige — verbatim из .planning/phases/03-overlay-system/03-UI-SPEC.md §Color Palette.
+Hex-токены forest_light/forest_dark — из Forest refactor spec (Phase A, 260420-x69).
 """
 from __future__ import annotations
 
@@ -57,10 +58,38 @@ PALETTES: dict[str, dict[str, str]] = {
         "accent_overdue": "#C04B3C",
         "shadow_card": "rgba(80, 55, 30, 0.12)",
     },
+    "forest_light": {
+        "bg_primary": "#EEE9DC",
+        "bg_secondary": "#F5F0E3",
+        "bg_tertiary": "#E2E0D2",
+        "text_primary": "#2E2B24",
+        "text_secondary": "#6A6558",
+        "text_tertiary": "#9A958A",
+        "accent_brand": "#1E5239",
+        "accent_brand_light": "#234E3A",
+        "accent_done": "#1E5239",
+        "accent_overdue": "#9E6A5A",
+        "shadow_card": "rgba(30, 40, 32, 0.10)",
+    },
+    "forest_dark": {
+        "bg_primary": "#161E1A",
+        "bg_secondary": "#202A24",
+        "bg_tertiary": "#1B2620",
+        "text_primary": "#E6E3D5",
+        "text_secondary": "#A5A89A",
+        "text_tertiary": "#6E7168",
+        "accent_brand": "#5E9E7A",
+        "accent_brand_light": "#6BAF8A",
+        "accent_done": "#5E9E7A",
+        "accent_overdue": "#B87D6F",
+        "shadow_card": "rgba(0, 0, 0, 0.35)",
+    },
 }
 
-# ---- Fonts — modern SF-inspired stack via Segoe UI Variable ----
-_FONT_FAMILY = "Segoe UI Variable"
+# ---- Fonts — Segoe UI (доступен Win7+ и на Win10, и на Win11).
+# Ранее использовался Segoe-UI-Variable шрифт из Win11 — на Win10 tkinter
+# silent fallback'ил на MS Sans Serif (Hotfix 260421-0jb).
+_FONT_FAMILY = "Segoe UI"
 _FONT_MONO = "Cascadia Mono"
 
 FONTS: dict[str, tuple] = {
@@ -85,13 +114,13 @@ class ThemeManager:
         tm.set_theme("dark")  # все подписчики вызываются
     """
 
-    def __init__(self, initial: str = "light") -> None:
-        self._theme: str = initial if initial in PALETTES else "light"
+    def __init__(self, initial: str = "forest_light") -> None:
+        self._theme: str = initial if initial in PALETTES else "forest_light"
         self._callbacks: list[Callable[[dict[str, str]], None]] = []
 
     @property
     def current(self) -> str:
-        """Текущая активная тема: 'light' | 'dark' | 'beige'."""
+        """Текущая активная тема: 'light' | 'dark' | 'beige' | 'forest_light' | 'forest_dark'."""
         return self._theme
 
     def subscribe(self, callback: Callable[[dict[str, str]], None]) -> None:
@@ -106,8 +135,8 @@ class ThemeManager:
         if theme == "system":
             theme = self.detect_system_theme()
         if theme not in PALETTES:
-            logger.warning("Неизвестная тема %r — fallback на light", theme)
-            theme = "light"
+            logger.warning("Неизвестная тема %r — fallback на forest_light", theme)
+            theme = "forest_light"
         self._theme = theme
         # CustomTkinter built-in mode (для стандартных CTk виджетов)
         try:

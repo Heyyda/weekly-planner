@@ -12,7 +12,7 @@ from client.ui.settings import (
 
 def test_defaults():
     s = UISettings()
-    assert s.theme == "light"
+    assert s.theme == "forest_light"
     assert s.task_style == "card"
     assert s.notifications_mode == "sound_pulse"
     assert s.on_top is True
@@ -53,7 +53,7 @@ def test_from_dict_uses_defaults_for_missing():
 def test_validate_resets_invalid_theme():
     s = UISettings(theme="purple")
     s.validate()
-    assert s.theme == "light"
+    assert s.theme == "forest_light"
 
 
 def test_validate_resets_invalid_task_style():
@@ -94,4 +94,4 @@ def test_store_load_with_corrupted_theme_sanitizes(tmp_appdata):
     storage.save_settings({"theme": "corrupted", "task_style": "card"})
     store = SettingsStore(storage)
     loaded = store.load()
-    assert loaded.theme == "light"  # validate() sanitized
+    assert loaded.theme == "forest_light"  # validate() sanitized

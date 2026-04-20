@@ -5,7 +5,7 @@ UISettings — dataclass-схема для settings.json (Phase 3).
 SettingsStore — тонкая обёртка: никакой новой I/O, только маршалинг dataclass ↔ dict.
 
 Пороги настроек:
-    theme: "light" | "dark" | "beige" | "system"
+    theme: "light" | "dark" | "beige" | "forest_light" | "forest_dark" | "system"
     task_style: "card" | "line" | "minimal"
     notifications_mode: "sound_pulse" | "pulse_only" | "silent"
 """
@@ -19,7 +19,7 @@ from client.core.storage import LocalStorage
 
 logger = logging.getLogger(__name__)
 
-VALID_THEMES = {"light", "dark", "beige", "system"}
+VALID_THEMES = {"light", "dark", "beige", "forest_light", "forest_dark", "system"}
 VALID_TASK_STYLES = {"card", "line", "minimal"}
 VALID_NOTIFICATIONS = {"sound_pulse", "pulse_only", "silent"}
 
@@ -27,7 +27,7 @@ VALID_NOTIFICATIONS = {"sound_pulse", "pulse_only", "silent"}
 @dataclass
 class UISettings:
     """Пользовательские настройки UI. Сохраняется в settings.json как dict."""
-    theme: str = "light"
+    theme: str = "forest_light"
     task_style: str = "card"
     notifications_mode: str = "sound_pulse"
     on_top: bool = True
@@ -51,8 +51,8 @@ class UISettings:
     def validate(self) -> None:
         """Чистит невалидные значения на defaults. Вызывается после load()."""
         if self.theme not in VALID_THEMES:
-            logger.warning("Неизвестная theme %r — reset на light", self.theme)
-            self.theme = "light"
+            logger.warning("Неизвестная theme %r — reset на forest_light", self.theme)
+            self.theme = "forest_light"
         if self.task_style not in VALID_TASK_STYLES:
             logger.warning("Неизвестный task_style %r — reset на card", self.task_style)
             self.task_style = "card"

@@ -137,6 +137,18 @@ class TrayManager:
                         radio=True,
                     ),
                     pystray.MenuItem(
+                        "Forest (светлая)",
+                        lambda i, it: self._cb_theme("forest_light"),
+                        checked=lambda it: self._settings.theme == "forest_light",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "Forest (тёмная)",
+                        lambda i, it: self._cb_theme("forest_dark"),
+                        checked=lambda it: self._settings.theme == "forest_dark",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
                         "Системная",
                         lambda i, it: self._cb_theme("system"),
                         checked=lambda it: self._settings.theme == "system",

@@ -105,6 +105,9 @@ class WeekNavigation:
         self._today_btn: Optional[ctk.CTkButton] = None
         self._header_label: Optional[ctk.CTkLabel] = None
         self._archive_banner: Optional[ctk.CTkFrame] = None
+        # Archive-banner labels (live-themeable — hotfix 260421-0jb)
+        self._archive_title_label: Optional[ctk.CTkLabel] = None
+        self._archive_return_label: Optional[ctk.CTkLabel] = None
 
         self._build()
         self._bind_keyboard()
@@ -157,8 +160,19 @@ class WeekNavigation:
         row.pack(fill="x")
         row.pack_propagate(False)
 
+        # Forest ghost-стиль: transparent bg + приглушённый текст + subtle hover.
+        # Hotfix 260421-0jb: без явных fg_color CTkButton берёт дефолтный синий.
+        bg_secondary = self._theme.get("bg_secondary")
+        text_tertiary = self._theme.get("text_tertiary")
+        text_secondary = self._theme.get("text_secondary")
+
         self._prev_btn = ctk.CTkButton(
             row, text="◀", width=self.ARROW_WIDTH, command=self.prev_week,
+            fg_color="transparent",
+            hover_color=bg_secondary,
+            text_color=text_tertiary,
+            border_width=0,
+            font=FONTS["body"],
         )
         self._prev_btn.pack(side="left", padx=4, pady=4)
 
@@ -167,11 +181,22 @@ class WeekNavigation:
 
         self._today_btn = ctk.CTkButton(
             row, text="Сегодня", width=self.TODAY_BTN_WIDTH, command=self.today,
+            fg_color="transparent",
+            hover_color=bg_secondary,
+            text_color=text_secondary,
+            border_width=1,
+            border_color=text_tertiary,
+            font=FONTS["caption"],
         )
         # Не pack по default — виден только для не-current
 
         self._next_btn = ctk.CTkButton(
             row, text="▶", width=self.ARROW_WIDTH, command=self.next_week,
+            fg_color="transparent",
+            hover_color=bg_secondary,
+            text_color=text_tertiary,
+            border_width=0,
+            font=FONTS["body"],
         )
         self._next_btn.pack(side="right", padx=4, pady=4)
 
@@ -182,16 +207,22 @@ class WeekNavigation:
             corner_radius=0,
             height=32,
         )
-        ctk.CTkLabel(
-            self._archive_banner, text="📦 Архив", font=FONTS["caption"],
-        ).pack(side="left", padx=8, pady=6)
-        ctk.CTkLabel(
+        # Live-themeable archive labels — ссылки сохраняем для _apply_theme
+        self._archive_title_label = ctk.CTkLabel(
+            self._archive_banner,
+            text="📦 Архив",
+            font=FONTS["caption"],
+            text_color=text_secondary,
+        )
+        self._archive_title_label.pack(side="left", padx=8, pady=6)
+        self._archive_return_label = ctk.CTkLabel(
             self._archive_banner,
             text="Вернуться →",
             font=FONTS["caption"],
-            text_color=self._theme.get("accent_brand"),
+            text_color=text_secondary,  # Forest: приглушённый, не ярко-синий
             cursor="hand2",
-        ).pack(side="right", padx=8)
+        )
+        self._archive_return_label.pack(side="right", padx=8)
         for child in self._archive_banner.winfo_children():
             try:
                 child.bind("<Button-1>", lambda e: self.today())
@@ -262,5 +293,37 @@ class WeekNavigation:
                 self._header_frame.configure(fg_color=palette.get("bg_primary"))
             if self._archive_banner and self._archive_banner.winfo_exists():
                 self._archive_banner.configure(fg_color=palette.get("bg_tertiary"))
+
+            # Ghost-стиль кнопок: transparent bg + Forest-цвета.
+            # Hotfix 260421-0jb: live-reapply при forest_light ↔ forest_dark.
+            bg_secondary = palette.get("bg_secondary")
+            text_tertiary = palette.get("text_tertiary")
+            text_secondary = palette.get("text_secondary")
+
+            for btn in (self._prev_btn, self._next_btn):
+                if btn and btn.winfo_exists():
+                    btn.configure(
+                        fg_color="transparent",
+                        hover_color=bg_secondary,
+                        text_color=text_tertiary,
+                    )
+            if self._today_btn and self._today_btn.winfo_exists():
+                self._today_btn.configure(
+                    fg_color="transparent",
+                    hover_color=bg_secondary,
+                    text_color=text_secondary,
+                    border_color=text_tertiary,
+                )
+            # Archive-banner labels: приглушённый text_secondary, не ярко-синий.
+            if (
+                self._archive_title_label is not None
+                and self._archive_title_label.winfo_exists()
+            ):
+                self._archive_title_label.configure(text_color=text_secondary)
+            if (
+                self._archive_return_label is not None
+                and self._archive_return_label.winfo_exists()
+            ):
+                self._archive_return_label.configure(text_color=text_secondary)
         except tk.TclError:
             pass
