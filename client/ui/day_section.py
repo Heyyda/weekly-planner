@@ -6,18 +6,25 @@ v0.4.0 redesign:
 - Плюс в правом верхнем углу header (не по центру body)
 - Rounded corners везде r=10
 - Соседи с неактивным днём — минимальный фон
+
+Forest Phase D (260421-183):
+- Inline edit-card: TaskWidget заменяется на TaskEditCard при enter_edit_mode
+- `_editing_task_id` трекает текущую редактируемую задачу (одна за раз)
+- Открытие второй edit-mode автосохраняет первую (flow-friendly)
+- `on_task_update(task_id, fields)` callback для MainWindow → storage.update_task
 """
 from __future__ import annotations
 
 import logging
 import tkinter as tk
-from datetime import date
+from datetime import date, timedelta
 from typing import Callable, Optional
 
 import customtkinter as ctk
 
 from client.core.models import Task
 from shared.parse_input import parse_quick_input
+from client.ui.task_edit_card import TaskEditCard
 from client.ui.task_widget import TaskWidget
 from client.ui.themes import FONTS, ThemeManager
 
@@ -44,6 +51,7 @@ class DaySection:
         on_task_edit: Callable[[str], None],
         on_task_delete: Callable[[str], None],
         on_inline_add: Callable[[Task], None],
+        on_task_update: Optional[Callable[[str, dict], None]] = None,
     ) -> None:
         self._day_date = day_date
         self._is_today = is_today
@@ -54,11 +62,16 @@ class DaySection:
         self._on_task_edit = on_task_edit
         self._on_task_delete = on_task_delete
         self._on_inline_add = on_inline_add
+        self._on_task_update = on_task_update
         self._is_archive: bool = False
         self._destroyed: bool = False
 
         self._task_widgets: dict[str, TaskWidget] = {}
         self._tasks: list[Task] = []
+
+        # Forest Phase D: inline edit state.
+        self._editing_task_id: Optional[str] = None
+        self._edit_card: Optional[TaskEditCard] = None
 
         self._plus_btn: Optional[ctk.CTkLabel] = None
         self._inline_entry: Optional[ctk.CTkEntry] = None
@@ -121,6 +134,14 @@ class DaySection:
 
     def destroy(self) -> None:
         self._destroyed = True
+        # Phase D: tear down edit card first если открыта.
+        if self._edit_card is not None:
+            try:
+                self._edit_card.destroy()
+            except Exception:
+                pass
+            self._edit_card = None
+        self._editing_task_id = None
         for w in list(self._task_widgets.values()):
             try:
                 w.destroy()
@@ -131,6 +152,120 @@ class DaySection:
             self.frame.destroy()
         except Exception as exc:
             logger.debug("DaySection destroy: %s", exc)
+
+    # ---- Forest Phase D: Inline edit-mode ----
+
+    def enter_edit_mode(self, task_id: str) -> None:
+        """Развернуть TaskEditCard на месте TaskWidget указанной задачи.
+
+        Если другая задача уже редактируется — сначала автосохраняем её,
+        потом открываем новую (flow-friendly UX).
+        """
+        if self._destroyed or self._is_archive:
+            return
+        # Auto-save предыдущую карточку если открыта другая задача.
+        if self._editing_task_id is not None and self._editing_task_id != task_id:
+            self.exit_edit_mode(save=True)
+        # Если уже редактируем эту же задачу — фокус и выход.
+        if self._editing_task_id == task_id and self._edit_card is not None:
+            self._edit_card.focus()
+            return
+
+        task = next((t for t in self._tasks if t.id == task_id), None)
+        if task is None:
+            return
+
+        widget = self._task_widgets.get(task_id)
+        before_ref = None
+        if widget is not None:
+            try:
+                before_ref = widget.frame
+                widget.frame.pack_forget()
+            except tk.TclError:
+                before_ref = None
+
+        # week_monday = Monday текущей секции (независимо от ее day_date).
+        week_monday = self._day_date - timedelta(days=self._day_date.weekday())
+
+        self._edit_card = TaskEditCard(
+            self._body_frame, task, week_monday, self._theme,
+            on_save=lambda fields, tid=task_id: self._handle_edit_save(tid, fields),
+            on_cancel=lambda: self.exit_edit_mode(save=False),
+            on_delete=lambda tid=task_id: self._handle_edit_delete(tid),
+        )
+        pack_kwargs = {"fill": "x", "pady": (0, 3)}
+        if before_ref is not None:
+            try:
+                self._edit_card.pack(before=before_ref, **pack_kwargs)
+            except tk.TclError:
+                self._edit_card.pack(**pack_kwargs)
+        else:
+            self._edit_card.pack(**pack_kwargs)
+
+        self._editing_task_id = task_id
+        self._update_body_visibility()
+        try:
+            self._edit_card.focus()
+        except tk.TclError:
+            pass
+
+    def exit_edit_mode(self, save: bool) -> None:
+        """Закрыть edit-card. Если save=True — передать текущие поля через
+        on_task_update callback перед teardown."""
+        if self._edit_card is None:
+            return
+        if save and self._on_task_update and self._editing_task_id:
+            try:
+                fields = self._edit_card.collect_fields()
+            except Exception as exc:
+                logger.error("collect_fields failed: %s", exc)
+                fields = None
+            if fields is not None:
+                try:
+                    self._on_task_update(self._editing_task_id, fields)
+                except Exception as exc:
+                    logger.error("on_task_update failed: %s", exc)
+        self._teardown_edit_mode()
+
+    def _handle_edit_save(self, task_id: str, fields: dict) -> None:
+        """Callback для кнопки 'Сохранить' / Ctrl+Enter внутри карточки."""
+        if self._on_task_update:
+            try:
+                self._on_task_update(task_id, fields)
+            except Exception as exc:
+                logger.error("on_task_update failed: %s", exc)
+        self._teardown_edit_mode()
+
+    def _handle_edit_delete(self, task_id: str) -> None:
+        """Callback для кнопки '🗑 Удалить' внутри карточки.
+
+        Сначала teardown edit-mode, потом вызов существующего on_task_delete —
+        порядок важен: undo-toast ждёт что UI не держит ссылок на задачу.
+        """
+        self._teardown_edit_mode()
+        try:
+            self._on_task_delete(task_id)
+        except Exception as exc:
+            logger.error("on_task_delete failed: %s", exc)
+
+    def _teardown_edit_mode(self) -> None:
+        task_id = self._editing_task_id
+        if self._edit_card is not None:
+            try:
+                self._edit_card.destroy()
+            except Exception:
+                pass
+            self._edit_card = None
+        self._editing_task_id = None
+        # Вернуть TaskWidget на место (если задача всё ещё в списке).
+        if task_id:
+            widget = self._task_widgets.get(task_id)
+            if widget is not None:
+                try:
+                    widget.frame.pack(fill="x", pady=(0, 3))
+                except tk.TclError:
+                    pass
+        self._update_body_visibility()
 
     # ---- Build ----
 
@@ -203,10 +338,14 @@ class DaySection:
         self._divider.pack(side="bottom", fill="x", padx=0, pady=0)
 
     def _update_body_visibility(self) -> None:
-        """Пустой день + no inline-add → body скрыт (только header = 34px)."""
+        """Пустой день + no inline-add + no edit-card → body скрыт."""
         if self._destroyed or self._body_frame is None:
             return
-        should_show = len(self._tasks) > 0 or self._inline_entry is not None
+        should_show = (
+            len(self._tasks) > 0
+            or self._inline_entry is not None
+            or self._edit_card is not None
+        )
         # Forest Phase B: today-секция получает более щедрый padding 14×12 (spec 4.4).
         if self._is_today:
             body_padx, body_pady = 14, (2, 12)

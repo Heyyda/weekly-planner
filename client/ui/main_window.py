@@ -297,6 +297,7 @@ class MainWindow:
                 on_task_edit=self._on_task_edit,
                 on_task_delete=self._on_task_delete,
                 on_inline_add=self._on_inline_add,
+                on_task_update=self._on_task_update,
             )
             ds.pack(fill="x", pady=4)
             self._day_sections[d] = ds
@@ -351,16 +352,40 @@ class MainWindow:
             self._refresh_tasks()
 
     def _on_task_edit(self, task_id: str) -> None:
+        """Forest Phase D: route to inline TaskEditCard через DaySection.enter_edit_mode.
+        Fallback на модальный EditDialog когда секция не найдена (старая задача в
+        другой неделе — edge case)."""
         if self._storage is None:
             return
         task = self._storage.get_task(task_id)
         if task is None:
             return
+        # Находим DaySection, содержащую задачу.
+        try:
+            task_day = date.fromisoformat(task.day)
+        except (ValueError, TypeError):
+            task_day = None
+        section = self._day_sections.get(task_day) if task_day else None
+        if section is not None:
+            section.enter_edit_mode(task_id)
+            return
+        # Fallback: модальный EditDialog (задача вне текущей недели).
         EditDialog(
             self._window, task, self._theme,
             on_save=self._on_edit_save,
             on_delete=self._on_task_delete,
         )
+
+    def _on_task_update(self, task_id: str, fields: dict) -> None:
+        """Forest Phase D: inline edit save → применить к storage + refresh UI."""
+        if self._storage is None:
+            return
+        allowed = {'text', 'day', 'time_deadline', 'done', 'position'}
+        payload = {k: v for k, v in fields.items() if k in allowed}
+        if not payload:
+            return
+        self._storage.update_task(task_id, **payload)
+        self._refresh_tasks()
 
     def _on_edit_save(self, updated: Task) -> None:
         if self._storage is None:

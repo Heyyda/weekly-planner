@@ -256,3 +256,33 @@ def test_ctrl_space_binding_present_when_trigger_set(mw_phase4_deps):
     bindings = mw._window.bind()
     assert any("Control-space" in b or "Control-Key-space" in b for b in bindings)
     mw.destroy()
+
+
+# ---------- Forest Phase D: inline edit routing ----------
+
+
+def test_on_task_edit_calls_day_section_enter_edit_mode(mw_phase4_deps, timestamped_task_factory):
+    """MainWindow._on_task_edit → DaySection.enter_edit_mode (inline edit)."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(text="edit me")
+    mw_phase4_deps["storage"].add_task(task)
+    mw._refresh_tasks()
+    today = date.today()
+    ds = mw._day_sections.get(today)
+    assert ds is not None
+    ds.enter_edit_mode = MagicMock()
+    mw._on_task_edit(task.id)
+    ds.enter_edit_mode.assert_called_once_with(task.id)
+    mw.destroy()
+
+
+def test_on_task_update_applies_to_storage(mw_phase4_deps, timestamped_task_factory):
+    """MainWindow._on_task_update → storage.update_task + refresh."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(text="orig")
+    mw_phase4_deps["storage"].add_task(task)
+    mw._on_task_update(task.id, {"text": "updated", "done": True})
+    updated = mw_phase4_deps["storage"].get_task(task.id)
+    assert updated.text == "updated"
+    assert updated.done is True
+    mw.destroy()

@@ -268,3 +268,101 @@ def test_task_widgets_forced_to_line_style(ds_deps):
     w = ds._task_widgets[t.id]
     assert w._style == "line"
     ds.destroy()
+
+
+# ---------- Forest Phase D: inline edit-mode ----------
+
+
+def _make_with_update(ds_deps, on_task_update, day_date=None):
+    """Helper — создать DaySection с on_task_update callback."""
+    if day_date is None:
+        day_date = date.today()
+    return DaySection(
+        ds_deps["root"], day_date, False, ds_deps["theme"], "line",
+        "user-1", ds_deps["on_toggle"], ds_deps["on_edit"],
+        ds_deps["on_delete"], ds_deps["on_inline_add"],
+        on_task_update=on_task_update,
+    )
+
+
+def test_enter_edit_mode_replaces_task_widget_with_card(ds_deps):
+    """Forest Phase D: клик ✎ → TaskEditCard в позиции TaskWidget + flag."""
+    ds = _make(ds_deps)
+    task = ds_deps["factory"](text="orig")
+    ds.render_tasks([task])
+    ds_deps["root"].update_idletasks()
+
+    ds.enter_edit_mode(task.id)
+    ds_deps["root"].update_idletasks()
+
+    assert ds._editing_task_id == task.id
+    assert ds._edit_card is not None
+    # TaskWidget frame pack_forget → winfo_manager() пусто.
+    widget = ds._task_widgets[task.id]
+    assert widget.frame.winfo_manager() == ""
+    ds.destroy()
+
+
+def test_second_edit_mode_saves_first_then_opens_new(ds_deps):
+    """Forest Phase D: открытие ✎ на task B когда редактируем task A →
+    A автосохраняется, B становится активной."""
+    on_task_update = MagicMock()
+    ds = _make_with_update(ds_deps, on_task_update)
+    t1 = ds_deps["factory"](text="a", position=0)
+    t2 = ds_deps["factory"](text="b", position=1)
+    ds.render_tasks([t1, t2])
+    ds_deps["root"].update_idletasks()
+
+    ds.enter_edit_mode(t1.id)
+    ds_deps["root"].update_idletasks()
+    ds.enter_edit_mode(t2.id)
+    ds_deps["root"].update_idletasks()
+
+    # Первый task автосохранён (callback вызвался минимум раз с t1.id).
+    assert on_task_update.called
+    call_task_ids = [c.args[0] for c in on_task_update.call_args_list]
+    assert t1.id in call_task_ids
+    assert ds._editing_task_id == t2.id
+    ds.destroy()
+
+
+def test_exit_edit_mode_save_calls_on_task_update(ds_deps):
+    """exit_edit_mode(save=True) → on_task_update(task_id, fields)."""
+    on_task_update = MagicMock()
+    ds = _make_with_update(ds_deps, on_task_update)
+    task = ds_deps["factory"](text="x")
+    ds.render_tasks([task])
+    ds_deps["root"].update_idletasks()
+
+    ds.enter_edit_mode(task.id)
+    ds_deps["root"].update_idletasks()
+    ds.exit_edit_mode(save=True)
+
+    on_task_update.assert_called_once()
+    args = on_task_update.call_args[0]
+    assert args[0] == task.id
+    assert isinstance(args[1], dict)
+    assert "text" in args[1]
+    assert args[1]["text"] == "x"
+    ds.destroy()
+
+
+def test_exit_edit_mode_cancel_does_not_call_on_task_update(ds_deps):
+    """exit_edit_mode(save=False) → callback НЕ вызван."""
+    on_task_update = MagicMock()
+    ds = _make_with_update(ds_deps, on_task_update)
+    task = ds_deps["factory"](text="x")
+    ds.render_tasks([task])
+    ds_deps["root"].update_idletasks()
+
+    ds.enter_edit_mode(task.id)
+    ds_deps["root"].update_idletasks()
+    ds.exit_edit_mode(save=False)
+
+    on_task_update.assert_not_called()
+    # TaskWidget вернулся на место.
+    widget = ds._task_widgets[task.id]
+    assert widget.frame.winfo_manager() == "pack"
+    assert ds._editing_task_id is None
+    assert ds._edit_card is None
+    ds.destroy()
