@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Phase 4 context + UI-SPEC + prototype approved
-last_updated: "2026-04-21T08:00:00.000Z"
+last_updated: "2026-04-21T02:15:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -26,15 +26,22 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 Phase: 4
 Plan: Not started
 
-Last activity: 2026-04-21 — Completed Forest refactor Phase A + A2 + A3 hotfix (palette, frameless window, Win10 visual fixes)
+Last activity: 2026-04-21 — Forest visual refactor complete — 8 phases (A, A2, A3, B, C, D, E, F, G, H), ~98% соответствие спеке
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260420-x69 | Phase A Forest: add forest_light / forest_dark palettes, make forest_light default | 2026-04-21 | (pending) | [260420-x69](./quick/260420-x69-phase-a-forest-add-forest-light-and-fore/) |
-| 260421-06u | Frameless main window: remove Windows title bar, custom 28px Forest header, DWM rounded corners | 2026-04-21 | (pending) | [260421-06u](./quick/260421-06u-frameless-main-window-remove-windows-tit/) |
-| 260421-0jb | Hotfix: Win10 rounded corners via SetWindowRgn, Segoe UI fallback, ghost-style week-nav buttons | 2026-04-21 | (pending) | [260421-0jb](./quick/260421-0jb-hotfix-forest-a-a2-rounded-corners-on-wi/) |
+| 260420-x69 | Phase A Forest: forest_light / forest_dark palettes, forest_light default | 2026-04-21 | e582548 | [260420-x69](./quick/260420-x69-phase-a-forest-add-forest-light-and-fore/) |
+| 260421-06u | Phase A2: frameless main window, custom 28px Forest header, DWM rounded corners | 2026-04-21 | e582548 | [260421-06u](./quick/260421-06u-frameless-main-window-remove-windows-tit/) |
+| 260421-0jb | Phase A3 hotfix: Win10 SetWindowRgn, Segoe UI, ghost-style week-nav buttons | 2026-04-21 | e582548 | [260421-0jb](./quick/260421-0jb-hotfix-forest-a-a2-rounded-corners-on-wi/) |
+| 260421-0td | Phase B: today bg_tertiary tint, transparent regular days, 1px разделители, CORNER_RADIUS=12 | 2026-04-21 | eb8724d | [260421-0td](./quick/260421-0td-phase-b-forest-structure-today-accent-ba/) |
+| 260421-11w | Phase C: typography — init_fonts(root), Cascadia/Consolas fallback chain | 2026-04-21 | 69fe9a9 | [260421-11w](./quick/260421-11w-phase-c-forest-typography-resolve-fonts-/) |
+| 260421-183 | Phase D: inline-edit TaskEditCard (pills для дня, compact time, 3 кнопки) | 2026-04-21 | b87aea0 | [260421-183](./quick/260421-183-phase-d-forest-inline-edit-replace-editd/) |
+| 260421-1jo | Phase E: flat-cream overlay + QuickCapture/UndoToast/UpdateBanner/Login цвета | 2026-04-21 | 25a065b | [260421-1jo](./quick/260421-1jo-phase-e-forest-secondary-windows-overlay/) |
+| 260421-1ya | Phase F: dark parity audit — 12 violations fixed (incl. Save button CTk-default blue) | 2026-04-21 | ef8c01d | [260421-1ya](./quick/260421-1ya-phase-f-forest-dark-parity-audit-all-ui-/) |
+| 260421-2a1 | Phase G polish: DWM shadow + ColorTween 60fps helper + 200ms expand animation | 2026-04-21 | 086b72f | [260421-2a1](./quick/260421-2a1-phase-g-forest-polish-dwm-drop-shadow-un/) |
+| 260421-2mk | Phase H convergence: plus-btn tween, archive dim palette, 3px strip, done overstrike | 2026-04-21 | 1ba2482 | [260421-2mk](./quick/260421-2mk-phase-h-forest-convergence-plus-btn-hove/) |
 
 ## Performance Metrics
 
