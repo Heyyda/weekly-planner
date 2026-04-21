@@ -70,6 +70,7 @@ class MainWindow:
         self._window.withdraw()
         self._window.title("Личный Еженедельник")
         self._window.minsize(*self.MIN_SIZE)
+        self._window.resizable(True, True)
 
         w, h = self._resolve_initial_size()
         self._window.geometry(f"{w}x{h}")
@@ -99,6 +100,7 @@ class MainWindow:
             "text_primary": self._theme.get("text_primary"),
             "bg_secondary": self._theme.get("bg_secondary"),
             "accent_brand": self._theme.get("accent_brand"),
+            "border_window": self._theme.get("border_window"),
         })
 
         self._window.bind("<Configure>", self._on_configure)
@@ -189,7 +191,12 @@ class MainWindow:
     # ---- Build ----
 
     def _build_ui(self) -> None:
-        self._root_frame = ctk.CTkFrame(self._window, corner_radius=0)
+        self._root_frame = ctk.CTkFrame(
+            self._window,
+            corner_radius=0,
+            border_width=1,
+            border_color=self._theme.get("border_window"),
+        )
         self._root_frame.pack(fill="both", expand=True)
 
         self._week_nav = WeekNavigation(
@@ -431,9 +438,10 @@ class MainWindow:
 
     def _apply_theme(self, palette: dict) -> None:
         bg = palette.get("bg_primary", "#F5EFE6")
+        border = palette.get("border_window", "#8A7D6B")
         try:
             self._window.configure(fg_color=bg)
             if hasattr(self, "_root_frame"):
-                self._root_frame.configure(fg_color=bg)
+                self._root_frame.configure(fg_color=bg, border_color=border)
         except tk.TclError:
             pass

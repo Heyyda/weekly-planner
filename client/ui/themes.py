@@ -30,6 +30,7 @@ PALETTES: dict[str, dict[str, str]] = {
         "accent_done": "#38A169",
         "accent_overdue": "#E85A5A",
         "shadow_card": "rgba(70, 55, 40, 0.08)",
+        "border_window": "#8A7D6B",
     },
     "dark": {
         "bg_primary": "#1F1B16",
@@ -43,6 +44,7 @@ PALETTES: dict[str, dict[str, str]] = {
         "accent_done": "#48B97D",
         "accent_overdue": "#F07272",
         "shadow_card": "rgba(0, 0, 0, 0.3)",
+        "border_window": "#4A433B",
     },
     "beige": {
         "bg_primary": "#E8DDC4",
@@ -56,6 +58,7 @@ PALETTES: dict[str, dict[str, str]] = {
         "accent_done": "#4A7A3D",
         "accent_overdue": "#C04B3C",
         "shadow_card": "rgba(80, 55, 30, 0.12)",
+        "border_window": "#7A6B52",
     },
 }
 
