@@ -150,6 +150,12 @@ None yet.
 - Фаза 6: CustomTkinter --onefile требует `.spec` + `sys._MEIPASS` chdir — без этого серые виджеты
 - Фаза 6: keyring в frozen exe — явный import `keyring.backends.Windows` обязателен
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260421-uxy | UI: новая иконка (крем+синий акцент), рамка 1px главного окна, overlay 56→73px (+30%), явный resize | 2026-04-21 | 9160292 | [260421-uxy-ui-border-width-1-overlay-30-56-73px-off](./quick/260421-uxy-ui-border-width-1-overlay-30-56-73px-off/) |
+
 ## Session Continuity
 
 Last session: 2026-04-16T11:49:13.069Z
