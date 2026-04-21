@@ -4,7 +4,7 @@ from PIL import Image
 
 from client.ui.icon_compose import (
     render_overlay_image,
-    OVERLAY_BLUE_BOTTOM,
+    OVERLAY_GREEN_BOTTOM,
     OVERLAY_RED_BOTTOM,
 )
 
@@ -40,22 +40,22 @@ def test_empty_state_has_plus_center_white():
 
 
 def test_badge_appears_when_count_positive_and_size_large():
-    """Test 5: task_count=3 + size=56 → badge присутствует в правом верхнем углу.
+    """Test 5 (UX v2): task_count=3 + size=56 → badge присутствует в правом верхнем углу.
 
-    Badge — белый ellipse 16x16 начиная с x=40, y=0.
-    Проверяем (44, 4) — внутри ellipse, вне зоны текста однозначно белый.
+    Badge — белый ellipse ~22x22 (BADGE_SIZE_FRAC=22/56), начинается с x=34, y=0.
+    Проверяем (50, 8) — внутри ellipse, вне outline и вне зоны текста.
     """
     img = render_overlay_image(56, "default", task_count=3)
-    # (44, 4): устойчиво в пределах badge ellipse и вне текста
-    r, g, b, a = img.getpixel((44, 4))
+    # (50, 8): устойчиво белый внутри нового badge
+    r, g, b, a = img.getpixel((50, 8))
     assert (r, g, b) == (255, 255, 255), f"Badge area должен быть белым, got ({r},{g},{b})"
 
 
 def test_no_badge_when_count_zero():
-    """Test 6: task_count=0 → no badge."""
+    """Test 6 (UX v2): task_count=0 → no badge."""
     img = render_overlay_image(56, "default", task_count=0)
-    # (44, 4): в этом месте при badge=off будет синий фон (не белый)
-    r, g, b, a = img.getpixel((44, 4))
+    # (50, 8): при badge=off в этом месте будет sage-зелёный фон (не белый)
+    r, g, b, a = img.getpixel((50, 8))
     assert not (r == 255 and g == 255 and b == 255), "При task_count=0 badge быть не должно"
 
 
@@ -67,12 +67,12 @@ def test_no_badge_on_small_icon():
     assert not (r == 255 and g == 255 and b == 255)
 
 
-def test_overdue_pulse_zero_is_blue():
-    """Test 8: state='overdue' + pulse_t=0.0 → фон синий."""
+def test_overdue_pulse_zero_is_sage():
+    """Test 8 (UX v2): state='overdue' + pulse_t=0.0 → фон sage-зелёный (G доминирует)."""
     img = render_overlay_image(56, "overdue", overdue_count=1, pulse_t=0.0)
-    # Пиксель фона (не центр, не badge) — синий: B > R
+    # Пиксель фона (не центр, не badge) — зелёный: G > R и G > B
     r, g, b, a = img.getpixel((10, 40))
-    assert b > r, f"pulse_t=0 должен быть синим (B>R): got RGB=({r},{g},{b})"
+    assert g > r and g > b, f"pulse_t=0 должен быть зелёным (G>R, G>B): got RGB=({r},{g},{b})"
 
 
 def test_overdue_pulse_half_is_red():
@@ -84,10 +84,10 @@ def test_overdue_pulse_half_is_red():
 
 
 def test_overdue_badge_shows_overdue_count():
-    """Test 10: state='overdue' + overdue_count=2 + size=56 → badge показывает overdue_count."""
+    """Test 10 (UX v2): state='overdue' + overdue_count=3 + size=56 → badge белый."""
     img = render_overlay_image(56, "overdue", task_count=10, overdue_count=3)
-    # Badge присутствует при overdue_count > 0 — проверяем (44, 4) — внутри ellipse, вне текста
-    r, g, b, a = img.getpixel((44, 4))
+    # Badge присутствует при overdue_count > 0 — (50, 8) внутри новой ellipse 22x22
+    r, g, b, a = img.getpixel((50, 8))
     assert (r, g, b) == (255, 255, 255), "Overdue badge должен быть белым"
 
 
