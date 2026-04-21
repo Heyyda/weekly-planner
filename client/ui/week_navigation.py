@@ -157,8 +157,18 @@ class WeekNavigation:
         row.pack(fill="x")
         row.pack_propagate(False)
 
+        # UX v2: кнопки в цвет темы, не CTk-default синий
+        text_primary = self._theme.get("text_primary")
+        text_tertiary = self._theme.get("text_tertiary")
+        hover_bg = self._theme.get("bg_secondary")
+
         self._prev_btn = ctk.CTkButton(
             row, text="◀", width=self.ARROW_WIDTH, command=self.prev_week,
+            fg_color="transparent",
+            text_color=text_primary,
+            hover_color=hover_bg,
+            border_width=0,
+            corner_radius=10,
         )
         self._prev_btn.pack(side="left", padx=4, pady=4)
 
@@ -167,11 +177,22 @@ class WeekNavigation:
 
         self._today_btn = ctk.CTkButton(
             row, text="Сегодня", width=self.TODAY_BTN_WIDTH, command=self.today,
+            fg_color="transparent",
+            text_color=text_primary,
+            hover_color=hover_bg,
+            border_width=1,
+            border_color=text_tertiary,
+            corner_radius=10,
         )
         # Не pack по default — виден только для не-current
 
         self._next_btn = ctk.CTkButton(
             row, text="▶", width=self.ARROW_WIDTH, command=self.next_week,
+            fg_color="transparent",
+            text_color=text_primary,
+            hover_color=hover_bg,
+            border_width=0,
+            corner_radius=10,
         )
         self._next_btn.pack(side="right", padx=4, pady=4)
 
@@ -262,5 +283,18 @@ class WeekNavigation:
                 self._header_frame.configure(fg_color=palette.get("bg_primary"))
             if self._archive_banner and self._archive_banner.winfo_exists():
                 self._archive_banner.configure(fg_color=palette.get("bg_tertiary"))
+            # UX v2: обновить цвета кнопок при смене темы
+            text_primary = palette.get("text_primary", "#2B2420")
+            text_tertiary = palette.get("text_tertiary", "#9A8F7D")
+            hover_bg = palette.get("bg_secondary", "#EDE6D9")
+            for btn in (self._prev_btn, self._next_btn):
+                if btn and btn.winfo_exists():
+                    btn.configure(text_color=text_primary, hover_color=hover_bg)
+            if self._today_btn and self._today_btn.winfo_exists():
+                self._today_btn.configure(
+                    text_color=text_primary,
+                    hover_color=hover_bg,
+                    border_color=text_tertiary,
+                )
         except tk.TclError:
             pass
