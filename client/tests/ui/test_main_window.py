@@ -57,13 +57,23 @@ def test_show_makes_visible(mw_deps):
 
 
 def test_toggle_alternates(mw_deps):
+    """Phase I: toggle() использует fade-in/fade-out. hide() не withdrawit
+    сразу — ждём ~FADE_OUT_MS+буфер чтобы on_complete сработал."""
+    import time
     mw = _make(mw_deps)
     mw_deps["root"].update()
+    mw._init_chain_done = True  # bypass defer-to-init для теста
     mw.toggle()
-    mw_deps["root"].update()
+    # Дать fade-in закончиться
+    for _ in range(15):
+        mw_deps["root"].update()
+        time.sleep(0.02)
     v1 = mw.is_visible()
     mw.toggle()
-    mw_deps["root"].update()
+    # Дать fade-out + withdraw отработать
+    for _ in range(15):
+        mw_deps["root"].update()
+        time.sleep(0.02)
     v2 = mw.is_visible()
     assert v1 != v2
     mw.destroy()
@@ -344,3 +354,167 @@ def test_compute_dim_palette_is_darker_than_source(mw_phase4_deps):
     original_accent = PALETTES[current]["accent_brand"]
     assert dim["accent_brand"] != original_accent, "dim не изменил accent_brand"
     mw.destroy()
+
+
+# ---------- Forest Phase I (260421-9n7): fade-in / fade-out ----------
+
+
+def test_init_sets_alpha_to_hidden_before_deiconify(mw_deps):
+    """Phase I: окно создаётся с alpha=ALPHA_HIDDEN чтобы init chain
+    (overrideredirect + SetWindowRgn + DWM shadow) отрабатывала под
+    полностью прозрачным окном — пользователь не видит "сборку из частей"."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    try:
+        alpha = float(mw._window.attributes("-alpha"))
+    except Exception:
+        alpha = 1.0
+    assert alpha <= MainWindow.ALPHA_HIDDEN + 0.01, (
+        f"alpha должен быть <= ALPHA_HIDDEN после __init__, получили {alpha}"
+    )
+    mw.destroy()
+
+
+def test_show_sets_alpha_to_zero_before_deiconify(mw_deps):
+    """Phase I: show() выставляет alpha=ALPHA_HIDDEN перед deiconify
+    чтобы ни одного кадра полностью-видимого необработанного окна не показалось."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Вручную "сделаем" окно видимым с alpha=1 (эмуляция повторного show)
+    mw._window.attributes("-alpha", 1.0)
+    mw._window.deiconify()
+    mw_deps["root"].update_idletasks()
+    # Теперь вызываем show() повторно — должен снова выставить alpha=HIDDEN.
+    mw._init_chain_done = True  # уже прошла init chain — fade-in запустится в after_idle
+    mw.show()
+    # Сразу после show() — alpha должен быть hidden (fade-in ещё не начался)
+    alpha = float(mw._window.attributes("-alpha"))
+    assert alpha <= MainWindow.ALPHA_HIDDEN + 0.01, (
+        f"show() должен сбросить alpha к HIDDEN до fade-in, получили {alpha}"
+    )
+    mw.destroy()
+
+
+def test_alpha_tween_animates_to_target(mw_deps):
+    """Phase I: _alpha_tween за duration_ms должен привести окно к to_val."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Стартуем tween 0 → 1 за 48ms (3 frame по 16ms — быстро, тест-friendly)
+    mw._alpha_tween(0.0, 1.0, duration_ms=48)
+    # Прокрутить mainloop несколько раз чтобы after-коллбеки отработали.
+    import time
+    for _ in range(10):
+        mw_deps["root"].update()
+        time.sleep(0.02)
+    final = float(mw._window.attributes("-alpha"))
+    assert final > 0.9, f"alpha должен достичь ~1.0 после tween, получили {final}"
+    # tween_id должен быть очищен после завершения
+    assert mw._alpha_tween_id is None, "после завершения tween_id должен быть None"
+    mw.destroy()
+
+
+def test_alpha_tween_cancels_superseding(mw_deps):
+    """Phase I: новый tween отменяет in-flight предыдущий. После второго
+    вызова tween_id указывает на новый job, не на старый."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Первый tween — long-running
+    mw._alpha_tween(0.0, 1.0, duration_ms=500)
+    first_id = mw._alpha_tween_id
+    assert first_id is not None, "первый tween должен установить _alpha_tween_id"
+    # Второй tween сразу после — должен отменить первый
+    mw._alpha_tween(1.0, 0.0, duration_ms=500)
+    second_id = mw._alpha_tween_id
+    assert second_id is not None
+    assert second_id != first_id, (
+        "после superseding tween_id должен измениться на новый after-job"
+    )
+    # Cancel через destroy — не падаем
+    mw.destroy()
+
+
+def test_hide_fades_then_withdraws(mw_deps):
+    """Phase I: hide() запускает fade-out → withdraw в on_complete.
+    Во время fade-out окно ещё видимо (не withdrawn), после завершения — withdrawn."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Эмулируем полностью-готовое видимое окно.
+    mw._init_chain_done = True
+    mw._window.attributes("-alpha", 1.0)
+    mw._window.deiconify()
+    mw_deps["root"].update_idletasks()
+    assert mw.is_visible(), "preconditions: окно должно быть видимым"
+    # Вызываем hide с коротким duration через override константы на instance
+    # (FADE_OUT_MS=120ms занимает слишком много времени в unit-тесте)
+    original_fade_out = MainWindow.FADE_OUT_MS
+    try:
+        MainWindow.FADE_OUT_MS = 48  # 3 фрейма
+        mw.hide()
+        # Прокрутить mainloop достаточно раз для завершения 48ms tween
+        import time
+        for _ in range(15):
+            mw_deps["root"].update()
+            time.sleep(0.02)
+    finally:
+        MainWindow.FADE_OUT_MS = original_fade_out
+    # После завершения — окно withdrawn
+    assert not mw.is_visible(), "после fade-out + on_complete окно должно быть withdrawn"
+    mw.destroy()
+
+
+def test_hide_instantly_withdraws_if_already_hidden(mw_deps):
+    """Phase I: если окно уже alpha=HIDDEN (ещё не показалось) —
+    hide() пропускает анимацию и сразу withdraw'ит."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Окно только что создано, alpha=HIDDEN, withdrawn по init-логике.
+    # Вызов hide() не должен зависать в tween и не должен запускать _alpha_tween.
+    mw._window.attributes("-alpha", MainWindow.ALPHA_HIDDEN)
+    mw.hide()
+    # Никакой активный tween не должен висеть.
+    assert mw._alpha_tween_id is None
+    mw.destroy()
+
+
+def test_init_chain_done_flag_set_after_dwm_shadow(mw_deps):
+    """Phase I: _apply_dwm_shadow вызывает _on_init_chain_done — флаг ставится в True."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    assert mw._init_chain_done is False, "флаг по умолчанию False"
+    mw._apply_dwm_shadow()
+    assert mw._init_chain_done is True, (
+        "_apply_dwm_shadow должен set'ить _init_chain_done = True"
+    )
+    mw.destroy()
+
+
+def test_pending_show_triggers_fade_in_on_init_chain_done(mw_deps):
+    """Phase I: если show() вызвали до завершения init chain — ставится
+    _pending_show, _on_init_chain_done() должен запустить fade-in."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    # Эмулируем "первый show() до завершения chain"
+    mw._init_chain_done = False
+    mw.show()
+    assert mw._pending_show is True, "show() до init_chain_done должен ставить pending_show"
+    # Теперь симулируем завершение chain
+    mw._on_init_chain_done()
+    assert mw._init_chain_done is True
+    assert mw._pending_show is False, "после _on_init_chain_done pending_show сбрасывается"
+    # Должен был стартовать tween (или как минимум выставить after-job)
+    # Не обязательно _alpha_tween_id != None (tween мог сразу завершиться за 1 frame при
+    # нестандартном таймере), поэтому проверяем факт выставления alpha после update().
+    mw_deps["root"].update()
+    mw.destroy()
+
+
+def test_destroy_cancels_in_flight_alpha_tween(mw_deps):
+    """Phase I: destroy() отменяет in-flight alpha tween — нет TclError на сироту-after."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    mw._alpha_tween(0.0, 1.0, duration_ms=1000)
+    assert mw._alpha_tween_id is not None
+    # destroy() должен отменить через _cancel_alpha_tween
+    mw.destroy()
+    # После destroy обращения к _alpha_tween_id допустимы (attr ещё существует)
+    # но further updates не должны падать

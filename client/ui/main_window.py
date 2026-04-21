@@ -29,6 +29,21 @@ Forest Phase H (260421-2mk) — convergence:
   - _on_archive_changed реально применяет dimmed палитру на DaySections через
     apply_dimmed_palette(dict) / (None). Раньше interpolate_palette вычислялся
     и выбрасывался в `_`.
+
+Forest Phase I (260421-9n7) — fade-in / fade-out:
+  - show(): alpha=0 → deiconify → ждём DWM chain → _alpha_tween 0→1 (180ms).
+    Пока init (overrideredirect + SetWindowRgn + DWM shadow) отрабатывает,
+    окно полностью прозрачно — пользователь не видит "сборку из частей".
+    Когда окно уже полностью стилизовано, начинается fade-in.
+  - hide(): _alpha_tween 1→0 (120ms) → withdraw on_complete. Симметричная
+    плавность при закрытии через ✕ или WM_DELETE_WINDOW.
+  - _alpha_tween — локальный 60fps (~16ms frame) ease-out cubic, superseding
+    semantic (новый tween отменяет in-flight), destroy-safe (winfo_exists
+    checks), fallback 0.01 если драйвер не рендерит 0.0 transparent frameless.
+  - Init-chain timings НЕ изменены (100/150/50 ms). Флаг _init_chain_done
+    синхронизирует fade-in с завершением _apply_dwm_shadow — первый show()
+    ждёт чтобы окно стало полностью стилизованным; subsequent show()
+    начинают fade-in немедленно.
 """
 from __future__ import annotations
 
@@ -86,6 +101,16 @@ class MainWindow:
     # Phase H: archive-dim factor — 0.3 = 30% затемнения относительно bg_primary.
     ARCHIVE_DIM_FACTOR = 0.3
 
+    # Phase I (260421-9n7): fade-in/out durations для show()/hide().
+    # 180ms in / 120ms out — "быстрое появление, ещё быстрее исчезновение"
+    # стандарт material-style (fade-in чуть медленнее для "разгона" глаза).
+    FADE_IN_MS = 180
+    FADE_OUT_MS = 120
+    ALPHA_FRAME_MS = 16             # ~60fps для alpha-tween
+    # Fallback если драйвер/DWM не рендерит полностью transparent frameless окно:
+    # 0.01 визуально = 0.0, но окно считается "видимым" для compositor'а.
+    ALPHA_HIDDEN = 0.0
+
     def __init__(
         self,
         root: ctk.CTk,
@@ -108,6 +133,15 @@ class MainWindow:
         self._window.withdraw()
         self._window.title("Личный Еженедельник")
         self._window.minsize(*self.MIN_SIZE)
+
+        # Phase I: сразу делаем окно прозрачным — пока init chain (overrideredirect +
+        # SetWindowRgn + DWM shadow) работает через after(100+150+50=~300ms),
+        # никакого визуального "собирается из частей" пользователь не увидит.
+        # При первом show() дождёмся завершения init chain и fade-in'нем.
+        try:
+            self._window.attributes("-alpha", self.ALPHA_HIDDEN)
+        except tk.TclError:
+            pass
 
         w, h = self._resolve_initial_size()
         self._window.geometry(f"{w}x{h}")
@@ -149,6 +183,16 @@ class MainWindow:
         # Phase H: запоминаем archive-state чтобы после rebuild восстановить dim.
         self._current_archive: bool = False
 
+        # Phase I: state для fade-анимации.
+        # _alpha_tween_id — in-flight after-job, отменяется при superseding tween.
+        # _init_chain_done — True после того как _apply_dwm_shadow() сработал
+        #   (последний шаг init chain). До этого момента show() deferит fade-in.
+        # _pending_show — True если show() был вызван до завершения init chain,
+        #   тогда _apply_dwm_shadow сам запустит fade-in по готовности.
+        self._alpha_tween_id: Optional[str] = None
+        self._init_chain_done: bool = False
+        self._pending_show: bool = False
+
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
         self._apply_theme({
@@ -176,11 +220,65 @@ class MainWindow:
     # ---- Phase 3 Public API ----
 
     def show(self) -> None:
-        self._window.deiconify()
-        self._window.lift()
+        """Phase I: показ с fade-in 0→1 за FADE_IN_MS.
+
+        Перед deiconify() выставляем alpha=0 — если окно пересоздаёт регион
+        или DWM не успевает применить тень за один кадр, пользователь этого
+        не увидит (окно полностью прозрачно).
+
+        Первый show() до завершения init chain → выставляем _pending_show,
+        _apply_dwm_shadow сам запустит fade-in по готовности.
+        Последующие show() → fade-in начинается немедленно."""
+        try:
+            self._window.attributes("-alpha", self.ALPHA_HIDDEN)
+        except tk.TclError:
+            pass
+        try:
+            self._window.deiconify()
+            self._window.lift()
+        except tk.TclError:
+            return
+        if self._init_chain_done:
+            # Init chain уже прошла — fade-in мгновенно (через after_idle чтобы
+            # deiconify успел применить window-state перед первым alpha-кадром).
+            try:
+                self._window.after_idle(
+                    lambda: self._alpha_tween(
+                        self.ALPHA_HIDDEN, 1.0, self.FADE_IN_MS,
+                    ),
+                )
+            except tk.TclError:
+                pass
+        else:
+            # Первый show() до завершения _apply_dwm_shadow — помечаем что
+            # готовы к fade-in, _on_init_chain_done() его запустит.
+            self._pending_show = True
 
     def hide(self) -> None:
-        self._window.withdraw()
+        """Phase I: fade-out 1→0 за FADE_OUT_MS → withdraw в on_complete.
+
+        Если окно уже скрыто (alpha=0) — сразу withdraw без анимации."""
+        # Отменить in-flight fade-in если он активен (superseding semantic)
+        self._cancel_alpha_tween()
+        try:
+            current_alpha = float(self._window.attributes("-alpha"))
+        except (tk.TclError, ValueError, TypeError):
+            current_alpha = 1.0
+
+        def _do_withdraw() -> None:
+            try:
+                self._window.withdraw()
+            except tk.TclError:
+                pass
+
+        if current_alpha <= self.ALPHA_HIDDEN + 0.001:
+            # Окно уже невидимо — пропускаем анимацию.
+            _do_withdraw()
+            return
+        self._alpha_tween(
+            current_alpha, self.ALPHA_HIDDEN, self.FADE_OUT_MS,
+            on_complete=_do_withdraw,
+        )
 
     def toggle(self) -> None:
         if self.is_visible():
@@ -201,6 +299,8 @@ class MainWindow:
             pass
 
     def destroy(self) -> None:
+        # Phase I: отменить in-flight alpha tween перед teardown.
+        self._cancel_alpha_tween()
         # Phase G: отменить in-flight close-btn tween перед teardown.
         if self._title_close_btn is not None:
             try:
@@ -818,6 +918,10 @@ class MainWindow:
 
         MARGINS(0,0,0,1): 1px "extended frame" снизу — минимум чтобы DWM показал
         тень, не ломая визуальную высоту контента.
+
+        Phase I: это последний шаг init chain — после него окно полностью
+        стилизовано и можно безопасно запустить fade-in (если show() уже был
+        вызван пока chain ещё не завершилась).
         """
         try:
             hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
@@ -839,3 +943,120 @@ class MainWindow:
             # DWM composition может быть отключен (Classic theme) или dwmapi.dll
             # недоступен (не-Windows) — тихо live-без-тени.
             logger.debug("DWM shadow failed (non-Windows / no DWM): %s", exc)
+
+        # Phase I: init chain завершена — пометить и, если есть pending show(),
+        # запустить fade-in. Вызывается из _apply_window_region_rounded через
+        # after(DWM_SHADOW_DELAY_MS) → первая инициализация гарантированно
+        # set'ит этот флаг через ~300ms после __init__.
+        self._on_init_chain_done()
+
+    # ---- Phase I (260421-9n7): fade-in/out animation ----
+
+    def _on_init_chain_done(self) -> None:
+        """Последний шаг init chain — пометить как готово + запустить pending fade-in.
+
+        Вызывается в конце _apply_dwm_shadow. Защищён от повторных вызовов
+        (re-apply региона при resize → снова дойдёт сюда, но _init_chain_done
+        уже True, pending_show уже обработан)."""
+        was_pending = self._pending_show
+        self._init_chain_done = True
+        self._pending_show = False
+        if was_pending:
+            # show() был вызван до того как окно стилизовалось — теперь fade-in.
+            try:
+                self._alpha_tween(self.ALPHA_HIDDEN, 1.0, self.FADE_IN_MS)
+            except Exception as exc:
+                logger.debug("pending fade-in launch failed: %s", exc)
+
+    def _alpha_tween(
+        self,
+        from_val: float,
+        to_val: float,
+        duration_ms: int,
+        on_complete: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """Плавная анимация `wm_attributes('-alpha', ...)` за duration_ms.
+
+        Особенности:
+        - ease-out cubic (как ColorTween) — быстрый старт, плавное торможение.
+        - ~60fps через after(ALPHA_FRAME_MS=16). Количество шагов =
+          max(1, duration_ms // ALPHA_FRAME_MS).
+        - Superseding semantic: если активен предыдущий tween — отменяется
+          через _cancel_alpha_tween(), новый стартует с текущей точки.
+        - Destroy-safe: winfo_exists() на каждом шаге + try/except TclError.
+        - on_complete фирится только при успешном достижении to_val (не при cancel).
+        """
+        # Отменить предыдущий tween (например, быстрый hide во время fade-in).
+        self._cancel_alpha_tween()
+
+        try:
+            if not self._window.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        duration_ms = max(1, int(duration_ms))
+        steps = max(1, duration_ms // self.ALPHA_FRAME_MS)
+        delta = to_val - from_val
+
+        def _step(i: int) -> None:
+            # Защита от destroy мid-animation.
+            try:
+                if not self._window.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            t = i / steps
+            if t > 1.0:
+                t = 1.0
+            # ease-out cubic: f(t) = 1 - (1-t)^3
+            inv = 1.0 - t
+            eased = 1.0 - inv * inv * inv
+            alpha = from_val + delta * eased
+            # Clamp [0.0, 1.0] — на случай float drift.
+            if alpha < 0.0:
+                alpha = 0.0
+            elif alpha > 1.0:
+                alpha = 1.0
+            try:
+                self._window.attributes("-alpha", alpha)
+            except tk.TclError:
+                self._alpha_tween_id = None
+                return
+
+            if i < steps:
+                try:
+                    self._alpha_tween_id = self._window.after(
+                        self.ALPHA_FRAME_MS, lambda: _step(i + 1),
+                    )
+                except tk.TclError:
+                    self._alpha_tween_id = None
+            else:
+                # Финальный кадр — снап в to_val (защита от округления).
+                try:
+                    self._window.attributes("-alpha", to_val)
+                except tk.TclError:
+                    pass
+                self._alpha_tween_id = None
+                if on_complete is not None:
+                    try:
+                        on_complete()
+                    except Exception as exc:
+                        logger.debug("alpha-tween on_complete failed: %s", exc)
+
+        # Первый кадр — сразу from_val чтобы не было видимого скачка.
+        try:
+            self._window.attributes("-alpha", from_val)
+        except tk.TclError:
+            return
+        _step(1)
+
+    def _cancel_alpha_tween(self) -> None:
+        """Отменить in-flight alpha tween (если есть). Widget остаётся в
+        последнем применённом alpha-значении — не откатывается."""
+        if self._alpha_tween_id is not None:
+            try:
+                self._window.after_cancel(self._alpha_tween_id)
+            except (tk.TclError, ValueError):
+                pass
+            self._alpha_tween_id = None
