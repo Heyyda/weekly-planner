@@ -153,6 +153,16 @@ class WeeklyPlannerApp:
         self.sync = SyncManager(self.storage, self.auth)
         self.sync.start()
 
+        # UX-02: Sync→UI callback убирает 30с лаг между merge_from_server и UI refresh.
+        # Callback вызывается из sync thread — через root.after переносим на main.
+        def _sync_complete_bridge(stats: dict) -> None:
+            try:
+                self.root.after(0, self._handle_sync_complete, stats)
+            except Exception as exc:
+                logger.debug("sync complete bridge failed: %s", exc)
+
+        self.sync.set_on_sync_complete(_sync_complete_bridge)
+
         # 5. Overlay
         self.overlay = OverlayManager(
             self.root, self.settings_store, self.settings, self.theme,
@@ -289,6 +299,33 @@ class WeeklyPlannerApp:
         """Принудительный sync из tray-меню."""
         if self.sync is not None:
             self.sync.force_sync()
+
+    def _handle_sync_complete(self, stats: dict) -> None:
+        """UX-02: callback после успешного sync — мгновенный refresh UI.
+
+        Вызывается на main thread через root.after (bridge из sync thread).
+        Skip дорогой refresh если ничего не изменилось (applied+pushed == 0).
+
+        Args:
+            stats: {applied, conflicts, tombstones_received, pushed}
+        """
+        applied = int(stats.get("applied", 0) or 0)
+        pushed = int(stats.get("pushed", 0) or 0)
+        if applied == 0 and pushed == 0:
+            return
+        logger.debug(
+            "sync complete: applied=%d pushed=%d → refresh UI",
+            applied, pushed,
+        )
+        try:
+            if self.main_window is not None:
+                self.main_window._refresh_tasks()
+        except Exception as exc:
+            logger.debug("main_window refresh failed: %s", exc)
+        try:
+            self._refresh_ui()
+        except Exception as exc:
+            logger.debug("_refresh_ui failed: %s", exc)
 
     def _handle_logout(self) -> None:
         """Разлогиниться: остановить sync + очистить токены."""

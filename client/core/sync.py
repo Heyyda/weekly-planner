@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from client.core import config
 from client.core.api_client import ApiResult, SyncApiClient
@@ -62,6 +62,11 @@ class SyncManager:
         self._thread: Optional[threading.Thread] = None
         # Флаг: sync thread должен прекратить работу (auth истёк или client error)
         self._auth_expired: bool = False
+
+        # UX-02: callback, вызывается после успешного merge_from_server + commit_drained.
+        # ВАЖНО: вызывается из SYNC THREAD — обработчик обязан сам заворачивать
+        # UI-операции в root.after(0, ...).
+        self._on_sync_complete: Optional[Callable[[dict], None]] = None
 
     # ------------------------------------------------------------------ #
     # Публичный API                                                        #
@@ -123,6 +128,22 @@ class SyncManager:
             return
         self._wake_event.set()
         logger.debug("force_sync: wake event установлен")
+
+    def set_on_sync_complete(
+        self, cb: Optional[Callable[[dict], None]],
+    ) -> None:
+        """UX-02: установить callback после успешного sync.
+
+        Callback получает stats dict со следующими ключами:
+            applied: int              — сколько серверных изменений применено
+            conflicts: int            — сколько конфликтов разрешено в пользу сервера
+            tombstones_received: int  — сколько tombstone удалений пришло
+            pushed: int               — сколько локальных изменений отправлено
+
+        Вызывается из SYNC THREAD — обработчик обязан сам обернуть
+        UI-операции в root.after(0, ...).
+        """
+        self._on_sync_complete = cb
 
     # ------------------------------------------------------------------ #
     # Internal: thread loop                                                #
@@ -218,6 +239,17 @@ class SyncManager:
             server_timestamp = payload.get("server_timestamp", "")
             stats = self._storage.merge_from_server(server_changes, server_timestamp)
             self._storage.commit_drained(drained)
+
+            # UX-02: уведомить UI-слой о завершении успешного sync (после commit_drained).
+            # Обработчик отвечает за thread-safety (root.after(0, ...)).
+            if self._on_sync_complete is not None:
+                notify_stats = dict(stats)
+                notify_stats["pushed"] = len(drained)
+                try:
+                    self._on_sync_complete(notify_stats)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("on_sync_complete callback failed: %s", exc)
+
             logger.info(
                 "Sync OK: pushed=%d, applied=%d, conflicts=%d, tombstones=%d",
                 len(drained),

@@ -378,3 +378,71 @@ def test_is_stale_exactly_at_threshold():
         datetime.now(timezone.utc) - timedelta(seconds=config.STALE_THRESHOLD_SECONDS - 5)
     ).isoformat().replace("+00:00", "Z")
     assert SyncManager._is_stale(just_fresh) is False
+
+
+# ------------------------------------------------------------------ #
+# UX-02: on_sync_complete callback                                     #
+# ------------------------------------------------------------------ #
+
+def test_set_on_sync_complete_invoked_after_successful_sync(sync_mgr, storage, api_mock):
+    """UX-02: после успешного _attempt_sync callback вызывается с stats dict."""
+    captured = []
+    sync_mgr.set_on_sync_complete(lambda stats: captured.append(stats))
+
+    # Триггер — добавим pending чтобы _attempt_sync не был noop
+    storage.add_pending_change(TaskChange(op="update", task_id="t-cb", done=True))
+    storage.set_meta("last_sync_at", utcnow_iso())
+
+    sync_mgr._attempt_sync()
+
+    assert len(captured) == 1, f"callback должен вызваться один раз, получили {len(captured)}"
+    stats = captured[0]
+    assert "applied" in stats
+    assert "conflicts" in stats
+    assert "tombstones_received" in stats
+    assert "pushed" in stats
+    assert stats["pushed"] == 1
+
+
+def test_on_sync_complete_not_called_on_auth_expired(sync_mgr, storage, api_mock):
+    """UX-02: при auth_expired callback НЕ вызывается."""
+    captured = []
+    sync_mgr.set_on_sync_complete(lambda stats: captured.append(stats))
+
+    api_mock.post_sync.return_value = ApiResult.auth_expired()
+    storage.add_pending_change(TaskChange(op="update", task_id="t-auth-cb", done=True))
+    storage.set_meta("last_sync_at", utcnow_iso())
+
+    sync_mgr._attempt_sync()
+
+    assert captured == [], "callback не должен вызываться при auth_expired"
+
+
+def test_on_sync_complete_not_called_on_server_error(sync_mgr, storage, api_mock):
+    """UX-02: при 5xx callback НЕ вызывается (только на успешный ответ)."""
+    captured = []
+    sync_mgr.set_on_sync_complete(lambda stats: captured.append(stats))
+
+    api_mock.post_sync.return_value = ApiResult.server_error(500, retry_after=1.0)
+    storage.add_pending_change(TaskChange(op="update", task_id="t-500-cb", done=True))
+    storage.set_meta("last_sync_at", utcnow_iso())
+
+    sync_mgr._attempt_sync()
+
+    assert captured == [], "callback не должен вызываться при 5xx"
+
+
+def test_on_sync_complete_exception_does_not_crash_sync(sync_mgr, storage, api_mock):
+    """UX-02: исключение в callback не должно ломать sync loop."""
+    def bad_callback(stats):
+        raise RuntimeError("boom")
+
+    sync_mgr.set_on_sync_complete(bad_callback)
+    storage.add_pending_change(TaskChange(op="update", task_id="t-boom", done=True))
+    storage.set_meta("last_sync_at", utcnow_iso())
+
+    # _attempt_sync не должен поднять исключение
+    result = sync_mgr._attempt_sync()
+    assert result.ok, "Sync должен завершиться OK несмотря на bad callback"
+    # pending commit'нулся — callback вызван после commit_drained
+    assert storage.pending_count() == 0
