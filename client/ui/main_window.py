@@ -223,7 +223,8 @@ class MainWindow:
     # ---- Week navigation callbacks ----
 
     def _on_week_changed(self, new_monday: date) -> None:
-        self._rebuild_day_sections()
+        """UX-01: лёгкий diff-update вместо heavy destroy+recreate — убирает мерцание."""
+        self._update_week()
         self._refresh_tasks()
 
     def _on_archive_changed(self, is_archive: bool) -> None:
@@ -279,6 +280,50 @@ class MainWindow:
                 zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                 self._drag_controller.register_drop_zone(zone)
 
+        if self._week_nav.is_current_archive():
+            self._on_archive_changed(True)
+
+    def _update_week(self) -> None:
+        """UX-01: лёгкое обновление недели — diff-rebuild без пересоздания DaySection.
+
+        Переиспользует существующие DaySection, только обновляет их даты и is_today
+        через set_day_date. Устраняет визуальное мерцание при переключении недель.
+
+        Fallback к _rebuild_day_sections если day_sections не инициализированы
+        (первый вызов) или их количество != 7.
+        """
+        if self._week_nav is None:
+            return
+        if len(self._day_sections) != 7:
+            self._rebuild_day_sections()
+            return
+
+        week_monday = self._week_nav.get_week_monday()
+        today = date.today()
+        new_dates = [week_monday + timedelta(days=i) for i in range(7)]
+
+        # Словарь упорядочен по вставке — это текущие 7 секций в порядке дней недели
+        old_sections_ordered = list(self._day_sections.values())
+        new_map: dict[date, DaySection] = {}
+
+        for i, d in enumerate(new_dates):
+            ds = old_sections_ordered[i]
+            ds.set_day_date(d, is_today=(d == today))
+            new_map[d] = ds
+
+        self._day_sections = new_map
+
+        # Drop zones хранят day_date — нужно перерегистрировать на новые даты
+        if self._drag_controller is not None:
+            try:
+                self._drag_controller.clear_drop_zones()
+                for d, ds in self._day_sections.items():
+                    zone = DropZone(day_date=d, frame=ds.get_drop_frame())
+                    self._drag_controller.register_drop_zone(zone)
+            except Exception as exc:
+                logger.debug("_update_week drop zone refresh failed: %s", exc)
+
+        # Archive mode обновить (если активен)
         if self._week_nav.is_current_archive():
             self._on_archive_changed(True)
 

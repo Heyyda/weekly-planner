@@ -127,6 +127,127 @@ class DaySection:
         self._is_archive = is_archive
         self._update_body_visibility()
 
+    def set_day_date(self, new_date: date, is_today: bool) -> None:
+        """Обновить день без пересоздания виджета (diff-rebuild).
+
+        UX-01: устраняет мерцание при смене недели — переиспользуем один и тот же
+        DaySection, меняя только дату/цвет/strip/label.
+
+        Args:
+            new_date: новая дата дня
+            is_today: является ли этот день сегодняшним
+        """
+        if self._destroyed:
+            return
+        old_is_today = self._is_today
+        self._day_date = new_date
+        self._is_today = is_today
+
+        # 1) Фон рамки
+        try:
+            self.frame.configure(fg_color=self._day_bg_color())
+        except tk.TclError:
+            pass
+
+        # 2) today_strip transition
+        if is_today and not old_is_today:
+            self._swap_to_today_strip()
+        elif not is_today and old_is_today:
+            self._swap_to_spacer()
+
+        # 3) Label текст + шрифт
+        day_label = self._find_day_label()
+        if day_label is not None:
+            day_name_short = DAY_NAMES_RU_SHORT[new_date.weekday()]
+            day_name_long = DAY_NAMES_RU_LONG[new_date.weekday()]
+            if is_today:
+                label_text = f"{day_name_long}, {new_date.day}"
+                font = FONTS["h2"]
+            else:
+                label_text = f"{day_name_short} {new_date.day}"
+                font = FONTS["body"]
+            try:
+                day_label.configure(text=label_text, font=font)
+            except tk.TclError:
+                pass
+
+    def _find_day_label(self) -> Optional[ctk.CTkLabel]:
+        """Найти day_label в _header_row — первый CTkLabel (после strip/spacer)."""
+        if self._header_row is None:
+            return None
+        try:
+            for child in self._header_row.winfo_children():
+                if isinstance(child, ctk.CTkLabel):
+                    return child
+        except tk.TclError:
+            pass
+        return None
+
+    def _swap_to_today_strip(self) -> None:
+        """not-today → today: удалить spacer → создать today_strip первым."""
+        if self._header_row is None:
+            return
+        try:
+            children = list(self._header_row.winfo_children())
+        except tk.TclError:
+            return
+        # Первый child — spacer (transparent frame). Удаляем.
+        if children and isinstance(children[0], ctk.CTkFrame):
+            try:
+                children[0].destroy()
+            except Exception:
+                pass
+
+        try:
+            self._today_strip = ctk.CTkFrame(
+                self._header_row, width=TODAY_STRIP_WIDTH,
+                fg_color=self._theme.get("accent_brand"), corner_radius=0,
+            )
+            remaining = list(self._header_row.winfo_children())
+            # Находим первого ещё-живого child, КРОМЕ только что созданного strip.
+            first_existing = None
+            for child in remaining:
+                if child is not self._today_strip:
+                    first_existing = child
+                    break
+            if first_existing is not None:
+                self._today_strip.pack(
+                    side="left", fill="y", padx=(0, 8), before=first_existing,
+                )
+            else:
+                self._today_strip.pack(side="left", fill="y", padx=(0, 8))
+            self._today_strip.pack_propagate(False)
+        except tk.TclError:
+            pass
+
+    def _swap_to_spacer(self) -> None:
+        """today → not-today: destroy strip → создать spacer первым."""
+        if self._today_strip is not None:
+            try:
+                self._today_strip.destroy()
+            except Exception:
+                pass
+            self._today_strip = None
+        if self._header_row is None:
+            return
+        try:
+            spacer = ctk.CTkFrame(
+                self._header_row, width=TODAY_STRIP_WIDTH + 8, fg_color="transparent",
+            )
+            remaining = list(self._header_row.winfo_children())
+            # Найти первого живого child, отличного от spacer
+            first_existing = None
+            for child in remaining:
+                if child is not spacer:
+                    first_existing = child
+                    break
+            if first_existing is not None:
+                spacer.pack(side="left", before=first_existing)
+            else:
+                spacer.pack(side="left")
+        except tk.TclError:
+            pass
+
     def destroy(self) -> None:
         self._destroyed = True
         for w in list(self._task_widgets.values()):

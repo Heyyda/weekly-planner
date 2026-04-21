@@ -234,12 +234,40 @@ def test_handle_quick_capture_save_creates_task(mw_phase4_deps):
 
 
 def test_week_navigation_changes_day_sections(mw_phase4_deps):
-    """prev_week() → _rebuild_day_sections → days изменились."""
+    """prev_week() → _update_week → days изменились."""
     mw = _make_mw_p4(mw_phase4_deps)
     initial_days = set(mw._day_sections.keys())
     mw._week_nav.prev_week()
     new_days = set(mw._day_sections.keys())
     assert initial_days != new_days
+    mw.destroy()
+
+
+def test_on_week_changed_reuses_day_sections(mw_phase4_deps):
+    """UX-01: _on_week_changed делает diff-rebuild — те же DaySection объекты переиспользуются."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    first_ids = [id(ds) for ds in mw._day_sections.values()]
+    assert len(first_ids) == 7
+    mw._week_nav.next_week()
+    mw_phase4_deps["root"].update_idletasks()
+    new_ids = [id(ds) for ds in mw._day_sections.values()]
+    assert first_ids == new_ids, (
+        "DaySection должны переиспользоваться при смене недели (diff-rebuild)"
+    )
+    mw.destroy()
+
+
+def test_handle_task_style_changed_rebuilds_heavy(mw_phase4_deps):
+    """UX-01: handle_task_style_changed использует heavy rebuild (новые объекты)."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    first_ids = [id(ds) for ds in mw._day_sections.values()]
+    mw.handle_task_style_changed("line")
+    mw_phase4_deps["root"].update_idletasks()
+    new_ids = [id(ds) for ds in mw._day_sections.values()]
+    # handle_task_style_changed должен пересоздать секции (heavy rebuild)
+    assert first_ids != new_ids, (
+        "handle_task_style_changed обязан пересоздавать DaySection (heavy rebuild)"
+    )
     mw.destroy()
 
 

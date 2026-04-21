@@ -223,3 +223,59 @@ def test_destroy_cleans_widgets(ds_deps):
     ds_deps["root"].update_idletasks()
     assert ds._destroyed is True
     assert ds._task_widgets == {}
+
+
+# ---------- set_day_date (diff-rebuild) ----------
+
+def test_set_day_date_updates_date_and_label_short_format(ds_deps):
+    """UX-01: set_day_date обновляет дату и label без пересоздания."""
+    d = date(2024, 1, 15)  # Понедельник
+    ds = _make(ds_deps, day_date=d, is_today=False)
+    ds.pack()
+    ds_deps["root"].update_idletasks()
+    new_d = date(2024, 2, 6)  # Вторник
+    ds.set_day_date(new_d, is_today=False)
+    assert ds._day_date == new_d
+    assert ds._is_today is False
+    lbl = ds._find_day_label()
+    assert lbl is not None
+    # Short format — "Вт 6"
+    assert "Вт" in lbl.cget("text")
+    assert "6" in lbl.cget("text")
+    ds.destroy()
+
+
+def test_set_day_date_not_today_to_today_creates_strip(ds_deps):
+    """UX-01: transition not-today → today создаёт today_strip и меняет label."""
+    d = date(2024, 1, 15)  # Понедельник
+    ds = _make(ds_deps, day_date=d, is_today=False)
+    ds.pack()
+    ds_deps["root"].update_idletasks()
+    assert ds._today_strip is None
+    ds.set_day_date(d, is_today=True)
+    assert ds._today_strip is not None
+    assert ds._is_today is True
+    lbl = ds._find_day_label()
+    assert lbl is not None
+    # Long format — "Понедельник, 15"
+    assert "Понедельник" in lbl.cget("text")
+    ds.destroy()
+
+
+def test_set_day_date_today_to_not_today_destroys_strip(ds_deps):
+    """UX-01: transition today → not-today уничтожает today_strip."""
+    d = date(2024, 1, 15)
+    ds = _make(ds_deps, day_date=d, is_today=True)
+    ds.pack()
+    ds_deps["root"].update_idletasks()
+    old_strip = ds._today_strip
+    assert old_strip is not None
+    ds.set_day_date(d, is_today=False)
+    assert ds._today_strip is None
+    # Старая ссылка уничтожена
+    try:
+        exists = bool(old_strip.winfo_exists())
+    except Exception:
+        exists = False
+    assert not exists
+    ds.destroy()
