@@ -42,15 +42,15 @@ def test_overlay_creates_toplevel(overlay_deps):
     overlay.destroy()
 
 
-def test_overlay_size_is_56x56(overlay_deps):
-    """OVR-01: OVERLAY_SIZE = 56 px per UI-SPEC."""
+def test_overlay_size_is_73x73(overlay_deps):
+    """OVR-01: OVERLAY_SIZE = 73 px (+30% от 56, user UX request)."""
     from client.ui.overlay import OverlayManager
     overlay = OverlayManager(
         overlay_deps["root"], overlay_deps["settings_store"],
         overlay_deps["settings"], overlay_deps["theme"],
     )
     overlay_deps["root"].update()
-    assert overlay.OVERLAY_SIZE == 56
+    assert overlay.OVERLAY_SIZE == 73
     overlay.destroy()
 
 

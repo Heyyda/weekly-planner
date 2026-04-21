@@ -50,7 +50,7 @@ class QuickCapturePopup:
     def is_visible(self) -> bool:
         return self._visible and self._popup is not None
 
-    def show_at_overlay(self, overlay_x: int, overlay_y: int, overlay_size: int = 56) -> None:
+    def show_at_overlay(self, overlay_x: int, overlay_y: int, overlay_size: int = 73) -> None:
         """D-02: показать popup под overlay. Toggle если уже открыт."""
         if self._visible:
             self.hide()

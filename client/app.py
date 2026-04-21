@@ -360,7 +360,7 @@ class WeeklyPlannerApp:
             x, y = self.overlay.get_position()
         except Exception:
             x, y = 0, 0
-        self.quick_capture.show_at_overlay(x, y, 56)
+        self.quick_capture.show_at_overlay(x, y, OverlayManager.OVERLAY_SIZE)
 
     def _handle_quick_capture_save(
         self, text: str, day_iso: str, time: Optional[str],

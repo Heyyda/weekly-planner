@@ -31,7 +31,7 @@ def test_popup_initial_hidden(qc_deps):
 
 def test_show_at_overlay_creates_toplevel(qc_deps):
     qc = _make(qc_deps)
-    qc.show_at_overlay(100, 100, 56)
+    qc.show_at_overlay(100, 100, 73)
     qc_deps["root"].update_idletasks()
     assert qc._popup is not None
     qc.destroy()
@@ -59,7 +59,7 @@ def test_hide_destroys_popup(qc_deps):
 def test_edge_flip_at_bottom_inverts_y(qc_deps):
     qc = _make(qc_deps)
     overlay_y = 450
-    overlay_size = 56
+    overlay_size = 73
     screen_h_sim = 500
     needed = overlay_y + overlay_size + qc.POPUP_GAP + qc.POPUP_HEIGHT + qc.EDGE_MARGIN
     assert needed > screen_h_sim
@@ -70,7 +70,7 @@ def test_edge_flip_at_bottom_inverts_y(qc_deps):
 def test_no_flip_at_top(qc_deps):
     qc = _make(qc_deps)
     overlay_y = 10
-    overlay_size = 56
+    overlay_size = 73
     expected_y = overlay_y + overlay_size + qc.POPUP_GAP
     assert expected_y > overlay_y
 

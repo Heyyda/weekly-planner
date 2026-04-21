@@ -7,16 +7,17 @@ def test_palettes_has_three_themes():
     assert set(PALETTES.keys()) == {"light", "dark", "beige"}
 
 
-def test_each_palette_has_11_tokens():
+def test_each_palette_has_12_tokens():
     expected_tokens = {
         "bg_primary", "bg_secondary", "bg_tertiary",
         "text_primary", "text_secondary", "text_tertiary",
         "accent_brand", "accent_brand_light",
         "accent_done", "accent_overdue",
         "shadow_card",
+        "border_window",
     }
     for name, palette in PALETTES.items():
-        assert set(palette.keys()) == expected_tokens, f"Палитра {name!r} не имеет 11 токенов"
+        assert set(palette.keys()) == expected_tokens, f"Палитра {name!r} не имеет 12 токенов"
 
 
 def test_light_palette_exact_hex_per_ui_spec():

@@ -1,5 +1,5 @@
 """
-OverlayManager — draggable square 56×56 на рабочем столе.
+OverlayManager — draggable square 73×73 на рабочем столе.
 
 Покрывает:
   OVR-01: overrideredirect + topmost + borderless
@@ -74,7 +74,7 @@ _MONITORENUMPROC = ctypes.WINFUNCTYPE(
 class OverlayManager:
     """Квадрат-оверлей на рабочем столе. См. 03-UI-SPEC §Overlay."""
 
-    OVERLAY_SIZE = 56  # px per UI-SPEC
+    OVERLAY_SIZE = 73  # px per user request (+30% от 56 для лучшей видимости на обоях)
     INIT_DELAY_MS = 100  # PITFALL 1 — критичная задержка для Win11 DWM
 
     def __init__(
