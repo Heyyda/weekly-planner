@@ -44,6 +44,22 @@ Forest Phase I (260421-9n7) — fade-in / fade-out:
     синхронизирует fade-in с завершением _apply_dwm_shadow — первый show()
     ждёт чтобы окно стало полностью стилизованным; subsequent show()
     начинают fade-in немедленно.
+
+Forest Phase J (260421-a3d) — smooth week transitions:
+  - _on_week_changed: вместо мгновенного _rebuild_day_sections() делаем
+    alpha-sandwich: 1.0→0.55 (90ms ease-out) → rebuild под dimmed окном →
+    0.55→1.0 (140ms ease-out). Суммарно ~230ms — фаст, но читается
+    как анимация, а не pop.
+  - Первый рендер (до _ever_rendered=True) или если init chain ещё не
+    завершилась (_init_chain_done=False) — rebuild мгновенно без анимации.
+    Причина: окно под alpha=0 (Phase I) — анимация была бы невидимой.
+  - Rapid ◀▶ клики: _pending_week_change хранит последний target;
+    on_complete out-tween читает именно его (не значение из замыкания).
+    WeekNavigation._week_monday уже обновлён синхронно, так что
+    _rebuild_day_sections() всегда строит актуальную неделю.
+  - Переиспользует _alpha_tween с Phase I — супересайдинг семантика
+    гарантирует, что повторный клик во время in-phase отменит её и
+    запустит новый sandwich с текущего alpha без визуальных сбросов.
 """
 from __future__ import annotations
 
@@ -110,6 +126,14 @@ class MainWindow:
     # Fallback если драйвер/DWM не рендерит полностью transparent frameless окно:
     # 0.01 визуально = 0.0, но окно считается "видимым" для compositor'а.
     ALPHA_HIDDEN = 0.0
+
+    # Phase J (260421-a3d): week-transition alpha-sandwich.
+    # OUT чуть быстрее IN — ощущается как "снятие материала и плавная отдача".
+    # DIM=0.55 достаточно заметен чтобы скрыть pop destroy+rebuild, но не
+    # выглядит как "окно замерло".
+    WEEK_TRANSITION_OUT_MS = 90
+    WEEK_TRANSITION_IN_MS = 140
+    WEEK_TRANSITION_DIM_ALPHA = 0.55
 
     def __init__(
         self,
@@ -192,6 +216,16 @@ class MainWindow:
         self._alpha_tween_id: Optional[str] = None
         self._init_chain_done: bool = False
         self._pending_show: bool = False
+
+        # Phase J (260421-a3d): week-transition state.
+        # _ever_rendered — становится True после первого rebuild. До этого
+        #   момента _on_week_changed rebuilds immediately (окно ещё под
+        #   alpha=0 по Phase I — анимация была бы невидимой).
+        # _pending_week_change — последний target для on_complete after
+        #   out-tween. Rapid-click safety: second click во время out-phase
+        #   перезаписывает target, rebuild читает latest.
+        self._ever_rendered: bool = False
+        self._pending_week_change: Optional[date] = None
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -393,8 +427,70 @@ class MainWindow:
     # ---- Week navigation callbacks ----
 
     def _on_week_changed(self, new_monday: date) -> None:
-        self._rebuild_day_sections()
-        self._refresh_tasks()
+        """Phase J (260421-a3d): smooth week transition через alpha-sandwich.
+
+        Поток:
+          1. Первый вызов ИЛИ init chain не закончилась → rebuild мгновенно,
+             _ever_rendered флипнется в True для последующих вызовов.
+             (Причина: окно ещё под alpha=0 по Phase I — анимация невидима.)
+          2. Subsequent вызовы → alpha 1.0→0.55 (OUT_MS) → rebuild под dim →
+             alpha 0.55→1.0 (IN_MS). Rebuild синхронный — tk update на dim
+             кадре успевает, destroy+pack артефакты скрыты под dim.
+
+        Rapid-click (user спамит ▶): _pending_week_change хранит latest
+        target. WeekNavigation уже синхронно обновила _week_monday до
+        колбэка, поэтому _rebuild_day_sections() (читает get_week_monday)
+        всегда строит latest. on_complete опирается на sandwich flow, а
+        не на конкретное значение new_monday в замыкании.
+        """
+        self._pending_week_change = new_monday
+
+        # Первый рендер или init chain ещё идёт — skip animation.
+        if not self._ever_rendered or not self._init_chain_done:
+            self._rebuild_day_sections()
+            self._refresh_tasks()
+            self._ever_rendered = True
+            self._pending_week_change = None
+            return
+
+        def _rebuild_and_fade_in() -> None:
+            # Синхронный rebuild — во время дима destroy+pack визуально
+            # скрыты. _pending_week_change очищается; WeekNavigation уже
+            # обновила _week_monday, rebuild читает актуальную неделю.
+            try:
+                self._rebuild_day_sections()
+                self._refresh_tasks()
+            except tk.TclError as exc:
+                logger.debug("week-transition rebuild failed: %s", exc)
+            self._pending_week_change = None
+            # Fade-in обратно к 1.0.
+            try:
+                self._alpha_tween(
+                    self.WEEK_TRANSITION_DIM_ALPHA, 1.0,
+                    self.WEEK_TRANSITION_IN_MS,
+                )
+            except Exception as exc:
+                logger.debug("week-transition in-tween failed: %s", exc)
+
+        # Out-tween 1.0 → DIM. Текущее значение alpha читаем на случай
+        # если пришли во время in-tween (alpha где-то между DIM и 1.0) —
+        # _alpha_tween superseding отменит in-flight, но стартуем из
+        # реально видимой точки, чтобы не было визуального скачка.
+        try:
+            current_alpha = float(self._window.attributes("-alpha"))
+        except (tk.TclError, ValueError, TypeError):
+            current_alpha = 1.0
+        try:
+            self._alpha_tween(
+                current_alpha, self.WEEK_TRANSITION_DIM_ALPHA,
+                self.WEEK_TRANSITION_OUT_MS,
+                on_complete=_rebuild_and_fade_in,
+            )
+        except Exception as exc:
+            # Fallback: без анимации — rebuild напрямую, чтобы пользователь
+            # не оказался в застрявшем dim-состоянии.
+            logger.debug("week-transition out-tween failed: %s", exc)
+            _rebuild_and_fade_in()
 
     def _on_archive_changed(self, is_archive: bool) -> None:
         """WEEK-06: archive mode на всех DaySection + DragController.

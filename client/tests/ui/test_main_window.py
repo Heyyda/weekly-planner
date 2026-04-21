@@ -518,3 +518,136 @@ def test_destroy_cancels_in_flight_alpha_tween(mw_deps):
     mw.destroy()
     # После destroy обращения к _alpha_tween_id допустимы (attr ещё существует)
     # но further updates не должны падать
+
+
+# ---------- Forest Phase J (260421-a3d): smooth week transitions ----------
+
+
+def test_first_week_change_has_no_animation(mw_phase4_deps):
+    """Phase J: первый вызов _on_week_changed (или вызов до _init_chain_done)
+    rebuilds immediately без alpha-tween — окно ещё под alpha=0 (Phase I),
+    анимация была бы невидимой."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    # После __init__ _ever_rendered=False, _init_chain_done=False.
+    assert mw._ever_rendered is False
+    assert mw._init_chain_done is False
+
+    # Шпионим за _alpha_tween — он НЕ должен быть вызван для первого изменения.
+    tween_calls = []
+    orig_tween = mw._alpha_tween
+
+    def spy_tween(*args, **kwargs):
+        tween_calls.append((args, kwargs))
+        return orig_tween(*args, **kwargs)
+
+    mw._alpha_tween = spy_tween
+
+    # Вызываем прямо _on_week_changed (эмулируем WeekNavigation-колбэк)
+    from datetime import date, timedelta
+    mw._on_week_changed(date.today() - timedelta(days=7))
+
+    assert tween_calls == [], f"первый week-change не должен звать _alpha_tween, got {tween_calls}"
+    assert mw._ever_rendered is True, "после первого rebuild _ever_rendered должен стать True"
+    assert mw._pending_week_change is None, "после immediate rebuild pending сбрасывается"
+    mw.destroy()
+
+
+def test_subsequent_week_change_triggers_alpha_sandwich(mw_phase4_deps):
+    """Phase J: когда _ever_rendered=True и _init_chain_done=True — week change
+    запускает alpha-sandwich: первый _alpha_tween — out (→DIM_ALPHA), on_complete
+    rebuilds + запускает второй tween (DIM_ALPHA→1.0)."""
+    import time
+    from datetime import date, timedelta
+
+    mw = _make_mw_p4(mw_phase4_deps)
+    # Эмулируем "уже прошли init chain + уже был первый рендер"
+    mw._init_chain_done = True
+    mw._ever_rendered = True
+
+    tween_calls = []
+    orig_tween = mw._alpha_tween
+
+    def spy_tween(from_val, to_val, duration_ms, on_complete=None):
+        tween_calls.append({
+            "from": from_val, "to": to_val,
+            "duration": duration_ms, "has_on_complete": on_complete is not None,
+        })
+        return orig_tween(from_val, to_val, duration_ms, on_complete=on_complete)
+
+    mw._alpha_tween = spy_tween
+
+    target = date.today() - timedelta(days=7)
+    mw._on_week_changed(target)
+
+    # Первый вызов — out tween (_ever_rendered path уже прошли выше).
+    assert len(tween_calls) >= 1, "должен быть хотя бы один _alpha_tween вызов"
+    first = tween_calls[0]
+    assert first["to"] == mw.WEEK_TRANSITION_DIM_ALPHA, (
+        f"первый tween должен быть OUT до DIM, got to={first['to']}"
+    )
+    assert first["duration"] == mw.WEEK_TRANSITION_OUT_MS
+    assert first["has_on_complete"] is True, "out-tween должен иметь on_complete"
+
+    # Прокрутить mainloop чтобы out-tween + on_complete + in-tween отработали.
+    for _ in range(20):
+        mw_phase4_deps["root"].update()
+        time.sleep(0.02)
+
+    # Должно быть >=2 tween-вызовов (out + in sandwich).
+    assert len(tween_calls) >= 2, (
+        f"sandwich требует 2 tween: out + in, got {len(tween_calls)}: {tween_calls}"
+    )
+    in_tween = tween_calls[1]
+    assert in_tween["from"] == mw.WEEK_TRANSITION_DIM_ALPHA
+    assert in_tween["to"] == 1.0
+    assert in_tween["duration"] == mw.WEEK_TRANSITION_IN_MS
+    mw.destroy()
+
+
+def test_rapid_week_change_uses_latest_target(mw_phase4_deps):
+    """Phase J rapid-click safety: 2 быстрых _on_week_changed подряд — финальный
+    rebuild должен дать DaySections для latest target (WeekNavigation синхронно
+    обновила _week_monday)."""
+    import time
+    from datetime import date, timedelta
+
+    mw = _make_mw_p4(mw_phase4_deps)
+    mw._init_chain_done = True
+    mw._ever_rendered = True
+
+    # Первый клик: ▶ на неделю вперёд
+    first_target = mw._week_nav.get_week_monday() + timedelta(days=7)
+    mw._week_nav.set_week_monday(first_target)
+    # WeekNavigation.set_week_monday вызывает _notify_changes → _on_week_changed,
+    # т.е. out-tween стартовал с first_target.
+
+    # Второй клик сразу (во время out-tween) — ▶ ещё раз
+    second_target = first_target + timedelta(days=7)
+    mw._week_nav.set_week_monday(second_target)
+    # set_week_monday синхронно обновило _week_monday и снова вызвало
+    # _on_week_changed → superseding _alpha_tween отменяет первую out-tween,
+    # стартует новая.
+
+    # _pending_week_change должен быть second_target (latest).
+    assert mw._pending_week_change == second_target, (
+        f"pending_week_change должен быть latest target, got {mw._pending_week_change}"
+    )
+
+    # Прокрутить mainloop чтобы sandwich завершился.
+    for _ in range(40):
+        mw_phase4_deps["root"].update()
+        time.sleep(0.02)
+
+    # Финальный rebuild должен построить секции для second_target.
+    expected_days = {second_target + timedelta(days=i) for i in range(7)}
+    actual_days = set(mw._day_sections.keys())
+    assert actual_days == expected_days, (
+        f"после rapid-click секции должны соответствовать latest target.\n"
+        f"expected={sorted(expected_days)}\n"
+        f"actual={sorted(actual_days)}"
+    )
+    # pending должен очиститься после rebuild.
+    assert mw._pending_week_change is None, (
+        "_pending_week_change должен очищаться после финального rebuild"
+    )
+    mw.destroy()
