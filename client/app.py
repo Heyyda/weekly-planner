@@ -43,6 +43,7 @@ from client.ui.quick_capture import QuickCapturePopup
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.themes import ThemeManager
 from client.utils import autostart as autostart_mod
+from client.utils.hotkeys import HotkeyManager
 from client.utils.notifications import NotificationManager
 from client.utils.tray import TrayManager
 from client.utils.updater import UpdateManager
@@ -94,6 +95,7 @@ class WeeklyPlannerApp:
         self.notifications: Optional[NotificationManager] = None
         self.tray: Optional[TrayManager] = None
         self.quick_capture: Optional[QuickCapturePopup] = None
+        self.hotkeys: Optional[HotkeyManager] = None
 
         self._authenticated: bool = False
         self._quit_requested: bool = False
@@ -208,6 +210,17 @@ class WeeklyPlannerApp:
 
         self.pulse = PulseAnimator(self.root, on_frame=_on_pulse_frame)
 
+        # 8.5 UX-03: Global hotkey Alt+Z — toggle главного окна из любого приложения.
+        # Graceful degradation: если keyboard library падает (admin rights /
+        # PyInstaller frozen) — логируем warning и продолжаем без хоткея.
+        try:
+            self.hotkeys = HotkeyManager()
+            self.hotkeys.register("alt+z", self._on_global_hotkey_toggle)
+            logger.info("Global hotkey Alt+Z зарегистрирован")
+        except Exception as exc:
+            logger.warning("Не удалось зарегистрировать Alt+Z: %s", exc)
+            self.hotkeys = None
+
         # 9. Notifications
         self.notifications = NotificationManager(mode=self.settings.notifications_mode)
         icon_path = self._resolve_app_icon_path()
@@ -300,6 +313,20 @@ class WeeklyPlannerApp:
         if self.sync is not None:
             self.sync.force_sync()
 
+    def _on_global_hotkey_toggle(self) -> None:
+        """UX-03: callback глобального Alt+Z — toggle main window.
+
+        Вызывается из внутреннего потока библиотеки keyboard.
+        Tkinter операции ОБЯЗАТЕЛЬНО через root.after(0, ...) — прямой вызов
+        main_window.toggle() из keyboard thread = краш Tcl.
+        """
+        if self.main_window is None:
+            return
+        try:
+            self.root.after(0, self.main_window.toggle)
+        except Exception as exc:
+            logger.debug("hotkey toggle failed: %s", exc)
+
     def _handle_sync_complete(self, stats: dict) -> None:
         """UX-02: callback после успешного sync — мгновенный refresh UI.
 
@@ -344,6 +371,15 @@ class WeeklyPlannerApp:
         self._quit_requested = True
         logger.info("Quit requested")
         try:
+            # UX-03: hotkeys unregister ПЕРВЫМ — keyboard listener должен
+            # перестать стрелять до того, как остальные компоненты умрут.
+            # Иначе hotkey callback из keyboard thread может обратиться к
+            # уничтоженному main_window/root → TclError.
+            if self.hotkeys is not None:
+                try:
+                    self.hotkeys.unregister()
+                except Exception as exc:
+                    logger.debug("hotkeys unregister: %s", exc)
             if self.pulse is not None:
                 self.pulse.stop()
             if self.sync is not None:
