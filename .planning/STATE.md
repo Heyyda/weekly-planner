@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 Phase: 4
 Plan: Not started
 
-Last activity: 2026-04-21 — Forest visual refactor + smooth open — 9 phases (A, A2, A3, B, C, D, E, F, G, H, I), ~98% соответствие спеке
+Last activity: 2026-04-21 — Forest visual refactor complete — 11 phases (A → K), smooth open/week/edit-card, v0.5.0 release
 
 ### Quick Tasks Completed
 
@@ -43,6 +43,8 @@ Last activity: 2026-04-21 — Forest visual refactor + smooth open — 9 phases 
 | 260421-2a1 | Phase G polish: DWM shadow + ColorTween 60fps helper + 200ms expand animation | 2026-04-21 | 086b72f | [260421-2a1](./quick/260421-2a1-phase-g-forest-polish-dwm-drop-shadow-un/) |
 | 260421-2mk | Phase H convergence: plus-btn tween, archive dim palette, 3px strip, done overstrike | 2026-04-21 | 1ba2482 | [260421-2mk](./quick/260421-2mk-phase-h-forest-convergence-plus-btn-hove/) |
 | 260421-9n7 | Phase I fade-in: window init chain под alpha=0, fade 180ms на show, 120ms fade-out на hide | 2026-04-21 | 215608c | [260421-9n7](./quick/260421-9n7-phase-i-forest-fade-in-hide-window-durin/) |
+| 260421-a3d | Phase J smooth week: alpha sandwich 1.0→0.55→rebuild→1.0 (90/140ms) при ◀▶/Сегодня | 2026-04-21 | eb09a98 | [260421-a3d](./quick/260421-a3d-phase-j-forest-smooth-week-transitions-a/) |
+| 260421-a9c | Phase K instant edit card: убрана expand-анимация, карточка открывается мгновенно | 2026-04-21 | 9f6c528 | [260421-a9c](./quick/260421-a9c-phase-k-forest-taskeditcard-instant-open/) |
 
 ## Performance Metrics
 
