@@ -48,6 +48,10 @@ class MainWindow:
     MIN_SIZE = (320, 320)
     DEFAULT_SIZE = (460, 600)
 
+    # UX-04: плавный fade show/hide (устраняет грубое мгновенное переключение).
+    FADE_DURATION_MS = 150
+    FADE_STEPS = 8
+
     def __init__(
         self,
         root: ctk.CTk,
@@ -118,11 +122,83 @@ class MainWindow:
     # ---- Phase 3 Public API ----
 
     def show(self) -> None:
+        """UX-04: fade-in 150мс через attributes('-alpha')."""
+        # Устанавливаем alpha=0 ДО deiconify — иначе первый кадр виден непрозрачным
+        # и только потом начинает гаснуть → мерцание.
+        try:
+            self._window.attributes("-alpha", 0.0)
+        except tk.TclError:
+            pass
         self._window.deiconify()
         self._window.lift()
+        self._fade(target=1.0, step=0)
 
     def hide(self) -> None:
-        self._window.withdraw()
+        """UX-04: fade-out 150мс, затем withdraw."""
+        try:
+            if self._window.winfo_viewable() == 0:
+                return
+        except tk.TclError:
+            return
+        self._fade(target=0.0, step=0, on_complete=self._safe_withdraw)
+
+    def _safe_withdraw(self) -> None:
+        """Завершение fade-out: withdraw + восстановить alpha=1.0 для следующего show."""
+        try:
+            self._window.withdraw()
+            self._window.attributes("-alpha", 1.0)
+        except tk.TclError:
+            pass
+
+    def _fade(
+        self,
+        target: float,
+        step: int,
+        on_complete: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """UX-04: плавное изменение alpha окна.
+
+        Использует ease-out quadratic для естественного ощущения.
+        На последнем шаге alpha устанавливается точно в target, чтобы не
+        накапливать floating-point погрешность.
+
+        Args:
+            target: целевая alpha (0.0 = скрыть, 1.0 = показать)
+            step: текущий шаг (0..FADE_STEPS-1)
+            on_complete: вызов после завершения fade
+        """
+        current_step = step + 1
+        progress = current_step / self.FADE_STEPS
+        eased = 1.0 - (1.0 - progress) ** 2  # ease-out quadratic
+
+        if target >= 0.5:  # fade-in: alpha от 0 к 1
+            alpha = eased
+        else:              # fade-out: alpha от 1 к 0
+            alpha = 1.0 - eased
+
+        try:
+            self._window.attributes("-alpha", max(0.0, min(1.0, alpha)))
+        except tk.TclError:
+            return
+
+        if current_step >= self.FADE_STEPS:
+            # Финальный кадр — точное значение
+            try:
+                self._window.attributes("-alpha", target)
+            except tk.TclError:
+                pass
+            if on_complete is not None:
+                try:
+                    on_complete()
+                except Exception as exc:
+                    logger.debug("fade on_complete failed: %s", exc)
+            return
+
+        delay_ms = max(1, int(self.FADE_DURATION_MS / self.FADE_STEPS))
+        try:
+            self._window.after(delay_ms, self._fade, target, current_step, on_complete)
+        except tk.TclError:
+            pass
 
     def toggle(self) -> None:
         if self.is_visible():

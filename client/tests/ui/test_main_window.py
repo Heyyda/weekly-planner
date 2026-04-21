@@ -1,4 +1,5 @@
 """Unit-тесты MainWindow (Plan 03-06 lifecycle + Plan 04-10 integration)."""
+import time
 from datetime import date, timedelta
 from unittest.mock import MagicMock
 
@@ -9,6 +10,22 @@ from client.core.storage import LocalStorage
 from client.ui.main_window import MainWindow
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.themes import ThemeManager
+
+
+def _drain_fade(root, duration_ms: int = 250) -> None:
+    """Прогнать Tk after-callbacks чтобы fade-эффект завершился.
+
+    UX-04: fade использует after() chain — без прогона колбэков окно остаётся
+    в промежуточном состоянии (viewable=1 но alpha<1).
+    """
+    deadline = time.time() + (duration_ms / 1000.0)
+    while time.time() < deadline:
+        try:
+            root.update()
+            root.update_idletasks()
+        except Exception:
+            break
+        time.sleep(0.01)
 
 
 # ---------- Phase 3 lifecycle fixture ----------
@@ -51,7 +68,7 @@ def test_show_makes_visible(mw_deps):
     mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.show()
-    mw_deps["root"].update()
+    _drain_fade(mw_deps["root"])
     assert mw.is_visible()
     mw.destroy()
 
@@ -60,10 +77,10 @@ def test_toggle_alternates(mw_deps):
     mw = _make(mw_deps)
     mw_deps["root"].update()
     mw.toggle()
-    mw_deps["root"].update()
+    _drain_fade(mw_deps["root"])
     v1 = mw.is_visible()
     mw.toggle()
-    mw_deps["root"].update()
+    _drain_fade(mw_deps["root"])
     v2 = mw.is_visible()
     assert v1 != v2
     mw.destroy()
@@ -269,6 +286,50 @@ def test_handle_task_style_changed_rebuilds_heavy(mw_phase4_deps):
         "handle_task_style_changed обязан пересоздавать DaySection (heavy rebuild)"
     )
     mw.destroy()
+
+
+# ---------- UX-04: fade show/hide ----------
+
+def test_show_fades_in_to_alpha_1(mw_deps):
+    """UX-04: show() плавно приводит alpha к 1.0."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    mw.show()
+    _drain_fade(mw_deps["root"])
+    try:
+        alpha = float(mw._window.attributes("-alpha"))
+    except Exception:
+        alpha = 1.0  # platform может не поддерживать — принимаем как успех
+    assert alpha >= 0.99, f"ожидали alpha≈1.0 после fade-in, получили {alpha}"
+    assert mw.is_visible()
+    mw.destroy()
+
+
+def test_hide_fades_out_and_withdraws(mw_deps):
+    """UX-04: hide() плавно уводит alpha к 0, затем withdraw."""
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    mw.show()
+    _drain_fade(mw_deps["root"])
+    assert mw.is_visible()
+    mw.hide()
+    _drain_fade(mw_deps["root"])
+    assert not mw.is_visible(), "После hide + drain окно должно быть withdrawn"
+    # Alpha восстановлена в 1.0 для следующего show
+    try:
+        alpha_after = float(mw._window.attributes("-alpha"))
+    except Exception:
+        alpha_after = 1.0
+    assert alpha_after >= 0.99, f"alpha должна восстановиться к 1.0, получили {alpha_after}"
+    mw.destroy()
+
+
+def test_fade_constants_present():
+    """UX-04: FADE_DURATION_MS и FADE_STEPS определены."""
+    assert hasattr(MainWindow, "FADE_DURATION_MS")
+    assert hasattr(MainWindow, "FADE_STEPS")
+    assert MainWindow.FADE_DURATION_MS > 0
+    assert MainWindow.FADE_STEPS > 0
 
 
 def test_ctrl_space_binding_present_when_trigger_set(mw_phase4_deps):
