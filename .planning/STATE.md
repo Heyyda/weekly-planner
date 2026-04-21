@@ -156,6 +156,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260421-uxy | UI: новая иконка (крем+синий акцент), рамка 1px главного окна, overlay 56→73px (+30%), явный resize | 2026-04-21 | 9160292 | [260421-uxy-ui-border-width-1-overlay-30-56-73px-off](./quick/260421-uxy-ui-border-width-1-overlay-30-56-73px-off/) |
 | 260421-vk4 | DnD fix: перенос задачи на пустой день — DropZone регистрируется на self.frame вместо _body_frame | 2026-04-21 | 076cc69 | [260421-vk4-dnd-dropzone-ds-frame-body-frame](./quick/260421-vk4-dnd-dropzone-ds-frame-body-frame/) |
+| 260421-vxz | UX polish: diff-rebuild недели + sync→UI callback + Alt+Z + fade show/hide | 2026-04-21 | 485bee6, e98152d, b18da5e, 444d70e | [260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-](./quick/260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-/) |
 
 ## Session Continuity
 
