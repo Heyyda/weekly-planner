@@ -18,6 +18,7 @@ Phase 4 (новое):
 """
 from __future__ import annotations
 
+import ctypes
 import logging
 import tkinter as tk
 from datetime import date, timedelta
@@ -93,11 +94,28 @@ class MainWindow:
             pass
         self._window.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # UX v2: убрать native title bar через overrideredirect + кастомный header.
+        # PITFALL 1 (Win11 DWM): overrideredirect строго через after(100, ...),
+        # иначе в некоторых конфигурациях окно теряет видимость или ломается DWM.
+        self._window.after(100, self._apply_borderless)
+
         self._day_sections: dict[date, DaySection] = {}
         self._drag_controller: Optional[DragController] = None
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
         self._edit_panel: Optional[InlineEditPanel] = None
+
+        # UX v2: кастомный title-bar + resize grip вместо native Windows frame
+        self._header_frame: Optional[ctk.CTkFrame] = None
+        self._header_title_lbl: Optional[ctk.CTkLabel] = None
+        self._header_close_btn: Optional[ctk.CTkLabel] = None
+        self._resize_grip: Optional[ctk.CTkLabel] = None
+        self._drag_offset_x = 0
+        self._drag_offset_y = 0
+        self._resize_start_w = 0
+        self._resize_start_h = 0
+        self._resize_start_x = 0
+        self._resize_start_y = 0
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -277,6 +295,9 @@ class MainWindow:
         )
         self._root_frame.pack(fill="both", expand=True)
 
+        # UX v2: кастомный header вместо native Windows title bar
+        self._build_custom_header(self._root_frame)
+
         self._week_nav = WeekNavigation(
             self._root_frame, self._window, self._theme,
             on_week_changed=self._on_week_changed,
@@ -296,7 +317,140 @@ class MainWindow:
             on_task_moved=self._on_task_moved,
         )
 
+        # UX v2: resize-grip в правом нижнем углу
+        self._build_resize_grip(self._root_frame)
+
         self._rebuild_day_sections()
+
+    # ---- UX v2: Custom title bar + drag-to-move + resize grip ----
+
+    def _apply_borderless(self) -> None:
+        """UX v2: убрать native title bar. Сохранить taskbar через WS_EX_APPWINDOW.
+
+        PITFALL 1 (Win11 DWM): overrideredirect должен вызываться после after(100, ...).
+        PITFALL 6: ctypes.windll.user32.GetParent может вернуть 0 — graceful try/except.
+        """
+        try:
+            self._window.overrideredirect(True)
+        except tk.TclError as exc:
+            logger.debug("overrideredirect failed: %s", exc)
+            return
+
+        # WS_EX_APPWINDOW — сохранить окно в taskbar и Alt+Tab
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
+            if not hwnd:
+                return
+            GWL_EXSTYLE = -20
+            WS_EX_APPWINDOW = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
+            current = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            new = (current & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new)
+            # Re-apply style: withdraw/deiconify цикл — только если окно видимо
+            # (на первом старте окно withdraw'нуто, значит flash не случится).
+            if self._window.winfo_viewable():
+                self._window.withdraw()
+                self._window.deiconify()
+        except Exception as exc:
+            logger.debug("WS_EX_APPWINDOW failed: %s", exc)
+
+    def _build_custom_header(self, parent: ctk.CTkFrame) -> ctk.CTkFrame:
+        """UX v2: кастомный header с drag-to-move + кнопкой закрытия."""
+        bg = self._theme.get("bg_secondary")
+        text_sec = self._theme.get("text_secondary")
+        text_ter = self._theme.get("text_tertiary")
+
+        header = ctk.CTkFrame(parent, fg_color=bg, height=30, corner_radius=0)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+
+        # Label слева
+        title_lbl = ctk.CTkLabel(
+            header, text="Личный Еженедельник",
+            font=FONTS["caption"], text_color=text_ter, anchor="w",
+        )
+        title_lbl.pack(side="left", padx=10)
+
+        # Кнопка закрытия ✕ — hide в tray, не destroy
+        close_btn = ctk.CTkLabel(
+            header, text="✕", font=FONTS["body_m"],
+            text_color=text_sec, cursor="hand2", width=30, height=30,
+        )
+        close_btn.pack(side="right", padx=4)
+        close_btn.bind("<Button-1>", lambda e: self.hide())
+        close_btn.bind(
+            "<Enter>",
+            lambda e: close_btn.configure(text_color=self._theme.get("accent_overdue")),
+        )
+        close_btn.bind(
+            "<Leave>",
+            lambda e: close_btn.configure(text_color=self._theme.get("text_secondary")),
+        )
+
+        # Drag-to-move: bind на header И title_lbl
+        for widget in (header, title_lbl):
+            widget.bind("<ButtonPress-1>", self._on_header_drag_start)
+            widget.bind("<B1-Motion>", self._on_header_drag_motion)
+
+        self._header_frame = header
+        self._header_title_lbl = title_lbl
+        self._header_close_btn = close_btn
+        return header
+
+    def _on_header_drag_start(self, event) -> None:
+        """Запомнить offset курсора относительно окна в момент press."""
+        try:
+            self._drag_offset_x = event.x_root - self._window.winfo_x()
+            self._drag_offset_y = event.y_root - self._window.winfo_y()
+        except tk.TclError:
+            pass
+
+    def _on_header_drag_motion(self, event) -> None:
+        """Перемещение окна следом за курсором."""
+        try:
+            new_x = event.x_root - self._drag_offset_x
+            new_y = event.y_root - self._drag_offset_y
+            self._window.geometry(f"+{new_x}+{new_y}")
+        except tk.TclError:
+            pass
+
+    def _build_resize_grip(self, parent: ctk.CTkFrame) -> None:
+        """UX v2: resize-grip ⤡ в правом нижнем углу."""
+        text_ter = self._theme.get("text_tertiary")
+        grip = ctk.CTkLabel(
+            parent, text="⤡", font=FONTS["body_m"],
+            text_color=text_ter, cursor="bottom_right_corner",
+            width=16, height=16,
+        )
+        grip.place(relx=1.0, rely=1.0, anchor="se", x=-4, y=-4)
+        grip.lift()
+        grip.bind("<ButtonPress-1>", self._on_grip_drag_start)
+        grip.bind("<B1-Motion>", self._on_grip_drag_motion)
+        self._resize_grip = grip
+
+    def _on_grip_drag_start(self, event) -> None:
+        """Запомнить начальный размер и позицию курсора."""
+        try:
+            self._resize_start_w = self._window.winfo_width()
+            self._resize_start_h = self._window.winfo_height()
+            self._resize_start_x = event.x_root
+            self._resize_start_y = event.y_root
+        except tk.TclError:
+            pass
+
+    def _on_grip_drag_motion(self, event) -> None:
+        """Изменить размер окна, соблюдая MIN_SIZE."""
+        try:
+            dx = event.x_root - self._resize_start_x
+            dy = event.y_root - self._resize_start_y
+            new_w = max(self.MIN_SIZE[0], self._resize_start_w + dx)
+            new_h = max(self.MIN_SIZE[1], self._resize_start_h + dy)
+            x = self._window.winfo_x()
+            y = self._window.winfo_y()
+            self._window.geometry(f"{new_w}x{new_h}+{x}+{y}")
+        except tk.TclError:
+            pass
 
     # ---- Week navigation callbacks ----
 
@@ -580,9 +734,21 @@ class MainWindow:
     def _apply_theme(self, palette: dict) -> None:
         bg = palette.get("bg_primary", "#F5EFE6")
         border = palette.get("border_window", "#8A7D6B")
+        bg_sec = palette.get("bg_secondary", "#EDE6D9")
+        text_sec = palette.get("text_secondary", "#6B5E4E")
+        text_ter = palette.get("text_tertiary", "#9A8F7D")
         try:
             self._window.configure(fg_color=bg)
             if hasattr(self, "_root_frame"):
                 self._root_frame.configure(fg_color=bg, border_color=border)
+            # UX v2: header + grip
+            if self._header_frame and self._header_frame.winfo_exists():
+                self._header_frame.configure(fg_color=bg_sec)
+            if self._header_title_lbl and self._header_title_lbl.winfo_exists():
+                self._header_title_lbl.configure(text_color=text_ter)
+            if self._header_close_btn and self._header_close_btn.winfo_exists():
+                self._header_close_btn.configure(text_color=text_sec)
+            if self._resize_grip and self._resize_grip.winfo_exists():
+                self._resize_grip.configure(text_color=text_ter)
         except tk.TclError:
             pass
