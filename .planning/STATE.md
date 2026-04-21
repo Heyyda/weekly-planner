@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Phase 4 context + UI-SPEC + prototype approved
-last_updated: "2026-04-16T11:49:13.075Z"
+last_updated: "2026-04-21T00:00:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -154,6 +154,7 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 260421-wng | UX v2: inline-редактирование задачи + sage-палитра overlay + цветная навигация + custom title bar (drag + resize-grip) | 2026-04-21 | e851bab, 0f3d300, 9d150b2, af41c6c | [260421-wng-ux-v2-inline-edit-overlay-title-bar](./quick/260421-wng-ux-v2-inline-edit-overlay-title-bar/) |
 | 260421-uxy | UI: новая иконка (крем+синий акцент), рамка 1px главного окна, overlay 56→73px (+30%), явный resize | 2026-04-21 | 9160292 | [260421-uxy-ui-border-width-1-overlay-30-56-73px-off](./quick/260421-uxy-ui-border-width-1-overlay-30-56-73px-off/) |
 | 260421-vk4 | DnD fix: перенос задачи на пустой день — DropZone регистрируется на self.frame вместо _body_frame | 2026-04-21 | 076cc69 | [260421-vk4-dnd-dropzone-ds-frame-body-frame](./quick/260421-vk4-dnd-dropzone-ds-frame-body-frame/) |
 | 260421-vxz | UX polish: diff-rebuild недели + sync→UI callback + Alt+Z + fade show/hide | 2026-04-21 | 485bee6, e98152d, b18da5e, 444d70e | [260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-](./quick/260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-/) |
