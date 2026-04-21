@@ -17,16 +17,19 @@ Shortcuts (привязаны к toplevel окну на время жизни к
 Палитра: все цвета через ThemeManager.get(...) — zero hardcoded hex.
 Шрифты:  только FONTS[...].
 
-Forest Phase G (260421-2a1):
-- animate_in(): после pack — frame.height с 0 до target_h за 200ms (ease-out cubic).
-  Использует pack_propagate(False) на время анимации, восстанавливает True по
-  завершению. Защита от destroy mid-animation: каждый шаг проверяет winfo_exists.
-
 Forest Phase H (260421-2mk):
 - BORDER_WIDTH 2 → 0: убрали полную рамку, оставили только 3px LEFT_STRIP (composite
   HBox). Раньше рамка визуально перекрывала strip и давала «двойной» accent-эффект;
   теперь match превью (edit-card::before в forest-preview.html — absolute-positioned
   3px полоса без border на контейнере).
+
+Forest Phase K (260421-a9c):
+- УБРАНА 200ms expand-анимация (Phase G): animate_in, _expand_step, _expand_finish,
+  EXPAND_DURATION_MS, EXPAND_STEP_MS, _expand_* state, pack_propagate(False) и
+  after_idle-scheduling в pack(). Причина: визуальный глюк "shrink → grow" при
+  клике ✎ — кадр с height=1 мелькал до запуска анимации. Теперь карточка
+  появляется мгновенно через natural CTk pack-driven sizing, фокус textbox
+  выставляется синхронно в pack().
 """
 from __future__ import annotations
 
@@ -56,10 +59,6 @@ class TaskEditCard:
     PILL_HEIGHT = 26
     TIME_ENTRY_WIDTH = 42
     TIME_ENTRY_HEIGHT = 28
-
-    # Phase G: expand-animation параметры.
-    EXPAND_DURATION_MS = 200
-    EXPAND_STEP_MS = 16  # ~60fps
 
     def __init__(
         self,
@@ -98,11 +97,6 @@ class TaskEditCard:
         self._esc_bind_id: Optional[str] = None
         self._ret_bind_id: Optional[str] = None
 
-        # Phase G: expand animation state.
-        self._expand_after_id: Optional[str] = None
-        self._expand_elapsed: int = 0
-        self._expand_target_h: int = 0
-
         palette_bg = self._theme.get("bg_secondary")
         palette_brand = self._theme.get("accent_brand")
 
@@ -121,24 +115,26 @@ class TaskEditCard:
     # ---- Public API ----
 
     def pack(self, **kwargs) -> None:
+        """Мгновенное появление карточки (Phase K — без expand-анимации).
+
+        Карточка рендерится за один кадр через natural CTk pack-driven sizing:
+        никакого pack_propagate(False), никакого after_idle-scheduling, никакого
+        height=1→target tween'а. Фокус textbox выставляется синхронно здесь же —
+        пользователь печатает немедленно после клика ✎.
+        """
         self.frame.pack(**kwargs)
-        # Phase G: запустить expand-анимацию после layout-pass (after_idle).
-        try:
-            self.frame.after_idle(self.animate_in)
-        except tk.TclError:
-            pass
+        # Синхронный фокус на textbox — ready-to-type сразу после pack.
+        if self._textbox is not None:
+            try:
+                if self._textbox.winfo_exists():
+                    self._textbox.focus_set()
+            except tk.TclError:
+                pass
 
     def destroy(self) -> None:
         if self._destroyed:
             return
         self._destroyed = True
-        # Phase G: отменить in-flight expand-анимацию.
-        if self._expand_after_id is not None:
-            try:
-                self.frame.after_cancel(self._expand_after_id)
-            except (tk.TclError, AttributeError):
-                pass
-            self._expand_after_id = None
         self._unbind_shortcuts()
         try:
             self.frame.destroy()
@@ -167,109 +163,6 @@ class TaskEditCard:
             "time_deadline": self._get_time_value(),
             "done": bool(self._done_var.get()) if self._done_var else False,
         }
-
-    # ---- Phase G: expand animation ----
-
-    def animate_in(self) -> None:
-        """Анимировать высоту frame'а с 0 до measured target за 200ms (ease-out cubic).
-
-        Вызывается автоматически через after_idle(pack). Measured target берётся
-        из winfo_reqheight() — CTkFrame возвращает актуальный размер после
-        layout-pass (not 1 из before-realize).
-
-        Safety:
-        - Если frame уже destroyed — silent no-op.
-        - Если target_h <= 1 (layout ещё не настроился) — повторяем after_idle один раз.
-        - pack_propagate(False) на время анимации — восстанавливается по завершению.
-        - Любая TclError → jump к финальному состоянию.
-        """
-        if self._destroyed:
-            return
-        try:
-            if not self.frame.winfo_exists():
-                return
-        except tk.TclError:
-            return
-
-        try:
-            target_h = int(self.frame.winfo_reqheight())
-        except tk.TclError:
-            return
-
-        if target_h <= 1:
-            # layout ещё не готов — одна повторная попытка через after_idle.
-            if not getattr(self, "_animate_retry", False):
-                self._animate_retry = True
-                try:
-                    self.frame.after_idle(self.animate_in)
-                except tk.TclError:
-                    pass
-            return
-
-        self._expand_target_h = target_h
-        self._expand_elapsed = 0
-
-        # Зафиксировать высоту + отключить auto-propagate.
-        try:
-            self.frame.pack_propagate(False)
-            self.frame.configure(height=1)
-        except tk.TclError:
-            # Если не удалось зафиксировать — оставляем как есть, анимации нет.
-            return
-
-        self._expand_schedule_step()
-
-    def _expand_schedule_step(self) -> None:
-        if self._destroyed:
-            return
-        try:
-            if not self.frame.winfo_exists():
-                return
-            self._expand_after_id = self.frame.after(
-                self.EXPAND_STEP_MS, self._expand_step,
-            )
-        except tk.TclError:
-            self._expand_finish()
-
-    def _expand_step(self) -> None:
-        if self._destroyed:
-            return
-        self._expand_after_id = None
-        try:
-            if not self.frame.winfo_exists():
-                return
-        except tk.TclError:
-            return
-
-        self._expand_elapsed += self.EXPAND_STEP_MS
-        t = self._expand_elapsed / max(1, self.EXPAND_DURATION_MS)
-        if t >= 1.0:
-            self._expand_finish()
-            return
-
-        # ease-out cubic: 1 - (1-t)^3
-        inv = 1.0 - t
-        eased = 1.0 - inv * inv * inv
-        new_h = max(1, int(self._expand_target_h * eased))
-        try:
-            self.frame.configure(height=new_h)
-        except tk.TclError:
-            self._expand_finish()
-            return
-        self._expand_schedule_step()
-
-    def _expand_finish(self) -> None:
-        """Восстановить естественную layout-модель: pack_propagate(True)."""
-        self._expand_after_id = None
-        if self._destroyed:
-            return
-        try:
-            if not self.frame.winfo_exists():
-                return
-            self.frame.configure(height=self._expand_target_h)
-            self.frame.pack_propagate(True)
-        except tk.TclError:
-            pass
 
     # ---- Build ----
 

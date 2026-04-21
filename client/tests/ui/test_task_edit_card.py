@@ -3,7 +3,7 @@
 Покрытие: build, pills, time, shortcuts, callbacks, palette switch.
 """
 from datetime import date, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -196,4 +196,89 @@ def test_frame_border_width_is_zero(tec_deps):
     assert TaskEditCard.BORDER_WIDTH == 0
     # На живом виджете — тоже 0.
     assert int(card.frame.cget("border_width")) == 0
+    card.destroy()
+
+
+# ---------- Forest Phase K: instant open, no expand animation ----------
+
+
+def test_pack_renders_card_immediately(tec_deps):
+    """Phase K: карточка получает реальную высоту за один кадр — никакого
+    shrink-to-1-then-grow. После pack() + update_idletasks reqheight должен
+    отражать полный контент (textbox 56px + pills + time + buttons ≫ 40px),
+    что невозможно если бы мы выставили height=1 через pack_propagate(False)."""
+    card = _make(tec_deps)
+    tec_deps["parent"].update_idletasks()
+    # Реальная высота карточки — сумма textbox + 2 pill rows + time row + checkbox
+    # + divider + buttons + padding. Минимум намного больше 40px.
+    assert card.frame.winfo_reqheight() > 40, (
+        f"Card rendered with height {card.frame.winfo_reqheight()} — "
+        "expected full-content height, got shrunk frame (expand-anim regression?)"
+    )
+    card.destroy()
+
+
+def test_no_expand_after_ids_scheduled_on_pack(tec_deps):
+    """Phase K: pack() не должен планировать expand-step через frame.after
+    или frame.after_idle. Проверяем патчем: ни один after-вызов не должен
+    уходить с callable, имя которого содержит 'expand' или 'animate'."""
+    task = tec_deps["factory"](text="my task")
+    card = TaskEditCard(
+        tec_deps["parent"], task, _monday_of_today(), tec_deps["theme"],
+        on_save=tec_deps["on_save"],
+        on_cancel=tec_deps["on_cancel"],
+        on_delete=tec_deps["on_delete"],
+    )
+
+    # Собираем все callback'и, прошедшие через after / after_idle, ПОСЛЕ построения
+    # карточки (build сам может легитимно использовать after — нас интересует ТОЛЬКО
+    # то что добавляет pack()).
+    real_after = card.frame.after
+    real_after_idle = card.frame.after_idle
+    after_calls: list[object] = []
+    after_idle_calls: list[object] = []
+
+    def spy_after(ms, func=None, *args):
+        after_calls.append(func)
+        return real_after(ms, func, *args) if func is not None else real_after(ms)
+
+    def spy_after_idle(func, *args):
+        after_idle_calls.append(func)
+        return real_after_idle(func, *args)
+
+    with patch.object(card.frame, "after", side_effect=spy_after), \
+         patch.object(card.frame, "after_idle", side_effect=spy_after_idle):
+        card.pack(fill="x")
+        tec_deps["parent"].update_idletasks()
+
+    def _is_anim_callback(cb) -> bool:
+        if cb is None:
+            return False
+        name = getattr(cb, "__name__", "") or ""
+        return (
+            "expand" in name.lower()
+            or "animate" in name.lower()
+        )
+
+    anim_after = [c for c in after_calls if _is_anim_callback(c)]
+    anim_after_idle = [c for c in after_idle_calls if _is_anim_callback(c)]
+
+    assert not anim_after, f"pack() scheduled expand/animate via after: {anim_after}"
+    assert not anim_after_idle, (
+        f"pack() scheduled expand/animate via after_idle: {anim_after_idle}"
+    )
+    # И класса у TaskEditCard нет animate_in / _expand_* методов (guard от регрессии).
+    assert not hasattr(card, "animate_in"), (
+        "TaskEditCard.animate_in должен быть удалён в Phase K"
+    )
+    assert not hasattr(card, "_expand_step"), (
+        "TaskEditCard._expand_step должен быть удалён в Phase K"
+    )
+    assert not hasattr(card, "_expand_finish"), (
+        "TaskEditCard._expand_finish должен быть удалён в Phase K"
+    )
+    assert not hasattr(TaskEditCard, "EXPAND_DURATION_MS"), (
+        "TaskEditCard.EXPAND_DURATION_MS должен быть удалён в Phase K"
+    )
+
     card.destroy()
