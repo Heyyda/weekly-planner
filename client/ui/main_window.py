@@ -276,7 +276,7 @@ class MainWindow:
             self._day_sections[d] = ds
 
             if self._drag_controller:
-                zone = DropZone(day_date=d, frame=ds.get_body_frame())
+                zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                 self._drag_controller.register_drop_zone(zone)
 
         if self._week_nav.is_current_archive():

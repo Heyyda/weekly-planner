@@ -110,6 +110,16 @@ class DaySection:
     def get_body_frame(self) -> ctk.CTkFrame:
         return self._body_frame
 
+    def get_drop_frame(self) -> ctk.CTkFrame:
+        """Фрейм для регистрации DropZone — вся секция дня (header + body).
+
+        Используется вместо get_body_frame(), потому что _body_frame может быть
+        скрыт через pack_forget() при пустом дне (см. _update_body_visibility).
+        Корневой self.frame упакован в main_window всегда, поэтому имеет
+        ненулевой bbox — DnD на пустой день работает корректно.
+        """
+        return self.frame
+
     def get_day_date(self) -> date:
         return self._day_date
 
