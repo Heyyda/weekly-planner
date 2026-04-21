@@ -29,7 +29,8 @@ from client.core.models import Task
 from client.core.storage import LocalStorage
 from client.ui.day_section import DaySection
 from client.ui.drag_controller import DragController, DropZone
-from client.ui.edit_dialog import EditDialog
+from client.ui.edit_dialog import EditDialog  # deprecated, оставлен на будущее
+from client.ui.inline_edit_panel import InlineEditPanel
 from client.ui.settings import SettingsStore, UISettings
 from client.ui.themes import FONTS, ThemeManager
 from client.ui.undo_toast import UndoToastManager
@@ -96,6 +97,7 @@ class MainWindow:
         self._drag_controller: Optional[DragController] = None
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
+        self._edit_panel: Optional[InlineEditPanel] = None
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -451,11 +453,29 @@ class MainWindow:
         task = self._storage.get_task(task_id)
         if task is None:
             return
-        EditDialog(
-            self._window, task, self._theme,
+        self._open_edit_panel(task)
+
+    def _open_edit_panel(self, task: Task) -> None:
+        """UX v2: открыть InlineEditPanel для задачи — закрыть предыдущую если есть."""
+        if self._edit_panel is not None:
+            try:
+                self._edit_panel.destroy()
+            except Exception:
+                pass
+            self._edit_panel = None
+        self._edit_panel = InlineEditPanel(
+            parent_frame=self._root_frame,
+            root_window=self._window,
+            task=task,
+            theme_manager=self._theme,
             on_save=self._on_edit_save,
             on_delete=self._on_task_delete,
+            on_close=self._close_edit_panel,
         )
+
+    def _close_edit_panel(self) -> None:
+        """Callback от InlineEditPanel после закрытия — очистить ref."""
+        self._edit_panel = None
 
     def _on_edit_save(self, updated: Task) -> None:
         if self._storage is None:
