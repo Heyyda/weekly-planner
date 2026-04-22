@@ -147,10 +147,12 @@ class MainWindow:
             pass
         self._window.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # UX v2: убрать native title bar через overrideredirect + кастомный header.
-        # PITFALL 1 (Win11 DWM): overrideredirect строго через after(100, ...),
-        # иначе в некоторых конфигурациях окно теряет видимость или ломается DWM.
-        self._window.after(100, self._apply_borderless)
+        # Quick 260422-tx2: EMERGENCY ROLLBACK — native Windows frame вместо borderless.
+        # Причина: overrideredirect(True) + custom header + Win32 resize вызывали
+        # Windows popup "параметр задан неправильно" при открытии окна (DWM clash).
+        # Native frame стабилен; кастомный header/edge-zones/Win32 hide-from-taskbar
+        # временно отключены — вернёмся к ним отдельно с другим подходом.
+        # self._window.after(100, self._apply_borderless)
 
         self._day_sections: dict[date, DaySection] = {}
         self._drag_controller: Optional[DragController] = None
@@ -346,8 +348,8 @@ class MainWindow:
         )
         self._root_frame.pack(fill="both", expand=True)
 
-        # UX v2: кастомный header вместо native Windows title bar
-        self._build_custom_header(self._root_frame)
+        # Quick 260422-tx2: кастомный header отключён — native frame вернулся (см. _apply_borderless).
+        # self._build_custom_header(self._root_frame)
 
         self._week_nav = WeekNavigation(
             self._root_frame, self._window, self._theme,
@@ -370,41 +372,25 @@ class MainWindow:
 
         self._rebuild_day_sections()
 
-        # Quick 260422-tah: edge-zones создаются последними, чтобы lift() поверх всего контента.
-        self._build_edge_resizers(self._root_frame)
+        # Quick 260422-tx2: edge-zones отключены — native frame уже ресайзит по краям.
+        # self._build_edge_resizers(self._root_frame)
 
     # ---- UX v2: Custom title bar + drag-to-move + resize grip ----
 
     def _apply_borderless(self) -> None:
-        """UX v2: убрать native title bar и скрыть из taskbar/Alt+Tab через WS_EX_TOOLWINDOW.
+        """UX v2: убрать native title bar.
 
         PITFALL 1 (Win11 DWM): overrideredirect должен вызываться после after(100, ...).
-        PITFALL 6: ctypes.windll.user32.GetParent может вернуть 0 — graceful try/except.
+
+        NOTE: WS_EX_TOOLWINDOW для hide-from-taskbar откачен (quick-260422-tx2) —
+        вызывал Windows popup "параметр задан неправильно" на overrideredirect окне
+        (несовместимая комбинация WS_POPUP + WS_EX_TOOLWINDOW на некоторых DWM-конфигах).
+        Окно остаётся в taskbar/Alt+Tab; скрытие делается через tray-close (withdraw).
         """
         try:
             self._window.overrideredirect(True)
         except tk.TclError as exc:
             logger.debug("overrideredirect failed: %s", exc)
-            return
-
-        # WS_EX_TOOLWINDOW — скрыть окно из taskbar и Alt+Tab (overlay+tray остаются видны)
-        try:
-            hwnd = _user32.GetParent(self._window.winfo_id())
-            if not hwnd:
-                return
-            GWL_EXSTYLE = -20
-            WS_EX_APPWINDOW = 0x00040000
-            WS_EX_TOOLWINDOW = 0x00000080
-            current = _get_window_long(hwnd, GWL_EXSTYLE)
-            new = (current & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
-            _set_window_long(hwnd, GWL_EXSTYLE, new)
-            # Re-apply style: withdraw/deiconify цикл — только если окно видимо
-            # (на первом старте окно withdraw'нуто, значит flash не случится).
-            if self._window.winfo_viewable():
-                self._window.withdraw()
-                self._window.deiconify()
-        except Exception as exc:
-            logger.debug("WS_EX_APPWINDOW failed: %s", exc)
 
     def _build_custom_header(self, parent: ctk.CTkFrame) -> ctk.CTkFrame:
         """UX v2: кастомный header с drag-to-move + кнопкой закрытия."""
