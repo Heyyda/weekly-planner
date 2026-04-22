@@ -136,11 +136,19 @@ class LocalStorage:
             self._save_locked()
 
     def update_task(self, task_id: str, **fields) -> bool:
-        """Изменить поля задачи + поставить partial UPDATE в очередь."""
-        allowed = {"text", "day", "time_deadline", "done", "position"}
+        """Изменить поля задачи + поставить partial UPDATE в очередь.
+
+        Recurrence (Quick 260422-v1a):
+          - recurrence хранится только локально (сервер про него не знает)
+          - При переходе done=False→True для recurrence='weekly' создаётся
+            клон на day+7 (Task.new → новый UUID → sync отправит CREATE).
+        """
+        allowed = {"text", "day", "time_deadline", "done", "position", "recurrence"}
         unknown = set(fields) - allowed
         if unknown:
             raise ValueError(f"Неизвестные поля: {unknown}")
+
+        clone_after: Optional[Task] = None  # готовим клон до выхода из lock
 
         with self._lock:
             target = None
@@ -150,12 +158,46 @@ class LocalStorage:
                     break
             if target is None or target.get("deleted_at") is not None:
                 return False
+
+            prev_done = bool(target.get("done", False))
+            new_done = fields.get("done", prev_done)
+
             for k, v in fields.items():
                 target[k] = v
             target["updated_at"] = utcnow_iso()  # локальный optimistic — сервер всё равно перепишет
-            change = TaskChange(op="update", task_id=task_id, **fields)
-            self._data["pending_changes"].append(change.to_dict())
+
+            # Recurrence клон: done переходит False→True и recurrence == "weekly"
+            if (
+                not prev_done and new_done
+                and target.get("recurrence") == "weekly"
+                and target.get("day")
+            ):
+                try:
+                    from datetime import date as _date, timedelta as _td
+                    next_day = (_date.fromisoformat(target["day"]) + _td(days=7)).isoformat()
+                    clone_after = Task.new(
+                        user_id=target.get("user_id", ""),
+                        text=target.get("text", ""),
+                        day=next_day,
+                        time_deadline=target.get("time_deadline"),
+                        position=int(target.get("position", 0)) + 1000,
+                    )
+                    clone_after.recurrence = "weekly"
+                except (ValueError, TypeError):
+                    clone_after = None
+
+            # recurrence НЕ попадает в pending_changes (TaskChange не знает про него) —
+            # фильтруем вручную, чтобы не бросить TypeError/422.
+            wire_fields = {k: v for k, v in fields.items() if k != "recurrence"}
+            if wire_fields:
+                change = TaskChange(op="update", task_id=task_id, **wire_fields)
+                self._data["pending_changes"].append(change.to_dict())
             self._save_locked()
+
+        # add_task берёт lock сам — вызываем ПОСЛЕ выхода из with (Lock не RLock, D-12)
+        if clone_after is not None:
+            self.add_task(clone_after)
+
         return True
 
     def soft_delete_task(self, task_id: str) -> bool:
@@ -282,6 +324,12 @@ class LocalStorage:
                     server_ts = local_format.get("updated_at", "") or ""
                     local_ts = existing.get("updated_at", "") or ""
                     if server_ts >= local_ts:
+                        # Quick 260422-v1a: recurrence — локальное поле, сервер про него не
+                        # знает. Сохраняем локальное значение при server-wins merge, иначе
+                        # флаг weekly терялся бы при каждой синхронизации.
+                        local_recurrence = existing.get("recurrence")
+                        if local_recurrence is not None and "recurrence" not in server_task:
+                            local_format["recurrence"] = local_recurrence
                         tasks_by_id[tid] = local_format
                         applied += 1
 

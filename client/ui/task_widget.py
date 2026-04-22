@@ -83,12 +83,18 @@ class TaskWidget:
         self._task = task
         if self._text_label is not None and self._text_label.winfo_exists():
             try:
-                self._text_label.configure(text=task.text)
+                self._text_label.configure(text=self._format_text(task))
             except tk.TclError:
                 pass
         self._render_checkbox()
         self._update_time_label()
         self._update_text_decoration()
+
+    @staticmethod
+    def _format_text(task: Task) -> str:
+        """🔁 prefix для weekly recurrence (Quick 260422-v1a)."""
+        prefix = "🔁 " if getattr(task, "recurrence", None) == "weekly" else ""
+        return f"{prefix}{task.text}"
 
     def destroy(self) -> None:
         self._destroyed = True
@@ -128,7 +134,7 @@ class TaskWidget:
 
         self._text_label = ctk.CTkLabel(
             self._body_frame,
-            text=self._task.text,
+            text=self._format_text(self._task),
             anchor="w",
             justify="left",
             wraplength=0,

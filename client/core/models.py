@@ -68,6 +68,7 @@ class Task:
     created_at: str = ""                        # ISO datetime UTC
     updated_at: str = ""                        # ISO datetime UTC (server-side)
     deleted_at: Optional[str] = None            # None = жива, ISO str = tombstone
+    recurrence: Optional[str] = None            # None | "weekly" — локально, не синхронизируется
 
     @classmethod
     def new(cls, user_id: str, text: str, day: str,

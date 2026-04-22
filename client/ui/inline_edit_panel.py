@@ -56,7 +56,7 @@ class InlineEditPanel:
         self._hh_var: Optional[ctk.StringVar] = None
         self._mm_var: Optional[ctk.StringVar] = None
         self._time_enabled_var: Optional[tk.BooleanVar] = None
-        self._done_var: Optional[tk.BooleanVar] = None
+        self._recurrence_var: Optional[tk.BooleanVar] = None
         self._save_btn: Optional[ctk.CTkButton] = None
         self._hh_menu: Optional[ctk.CTkOptionMenu] = None
         self._mm_menu: Optional[ctk.CTkOptionMenu] = None
@@ -192,10 +192,14 @@ class InlineEditPanel:
         if not has_time:
             self._set_time_menus_dim(True)
 
-        # Done checkbox
-        self._done_var = tk.BooleanVar(value=self._task.done)
+        # Recurrence toggle — еженедельное повторение (Quick 260422-v1a).
+        # Заменяет бывший Done checkbox — done управляется кликом по чекбоксу
+        # в TaskWidget, дублирование в edit-панели убрано.
+        self._recurrence_var = tk.BooleanVar(
+            value=(getattr(self._task, "recurrence", None) == "weekly")
+        )
         ctk.CTkCheckBox(
-            content, text="Выполнено", variable=self._done_var,
+            content, text="Повторять каждую неделю", variable=self._recurrence_var,
             command=self._update_save_state, font=FONTS["body"],
             corner_radius=4, checkbox_width=20, checkbox_height=20,
         ).pack(anchor="w", pady=(0, 10))
@@ -387,19 +391,24 @@ class InlineEditPanel:
         if not text:
             return
         day_iso = self._day_label_to_iso(self._day_var.get()) if self._day_var else self._task.day
-        done = self._done_var.get() if self._done_var else self._task.done
         time_val: Optional[str] = None
         if self._time_enabled_var and self._time_enabled_var.get():
             hh = self._hh_var.get() if self._hh_var else "09"
             mm = self._mm_var.get() if self._mm_var else "00"
             time_val = f"{hh}:{mm}"
 
+        # Quick 260422-v1a: done сохраняем как был (toggle теперь только через
+        # чекбокс в TaskWidget); recurrence читаем из нового чекбокса.
+        recurrence_val = "weekly" if (self._recurrence_var and self._recurrence_var.get()) else None
+
         updated = Task(
             id=self._task.id, user_id=self._task.user_id, text=text,
-            day=day_iso, time_deadline=time_val, done=done,
+            day=day_iso, time_deadline=time_val,
+            done=self._task.done,
             position=self._task.position,
             created_at=self._task.created_at, updated_at=self._task.updated_at,
             deleted_at=self._task.deleted_at,
+            recurrence=recurrence_val,
         )
         self._close_with_callback(lambda: self._on_save(updated))
 

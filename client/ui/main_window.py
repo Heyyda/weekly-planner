@@ -733,6 +733,7 @@ class MainWindow:
             day=updated.day,
             time_deadline=updated.time_deadline,
             done=updated.done,
+            recurrence=updated.recurrence,
         )
         self._refresh_tasks()
 
