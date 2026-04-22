@@ -24,8 +24,9 @@ def test_light_palette_exact_hex_per_ui_spec():
     p = PALETTES["light"]
     assert p["bg_primary"] == "#F5EFE6"
     assert p["text_primary"] == "#2B2420"
-    assert p["accent_brand"] == "#1E73E8"
-    assert p["accent_brand_light"] == "#4EA1FF"
+    # accent_brand обновлён на sage-зелёный (UX-решение post-UI-SPEC, quick 260422-ugq)
+    assert p["accent_brand"] == "#7A9B6B"
+    assert p["accent_brand_light"] == "#9DBC8A"
     assert p["accent_done"] == "#38A169"
     assert p["accent_overdue"] == "#E85A5A"
 
@@ -33,7 +34,8 @@ def test_light_palette_exact_hex_per_ui_spec():
 def test_dark_palette_exact_hex_per_ui_spec():
     p = PALETTES["dark"]
     assert p["bg_primary"] == "#1F1B16"
-    assert p["accent_brand"] == "#4EA1FF"
+    # sage (brighter for dark) post-UI-SPEC UX-решение
+    assert p["accent_brand"] == "#94B080"
     assert p["accent_done"] == "#48B97D"
 
 
@@ -41,7 +43,8 @@ def test_beige_palette_exact_hex_per_ui_spec():
     p = PALETTES["beige"]
     assert p["bg_primary"] == "#E8DDC4"
     assert p["text_primary"] == "#3D2F1F"
-    assert p["accent_brand"] == "#2966C4"
+    # muted sage для beige темы
+    assert p["accent_brand"] == "#6B8B5C"
 
 
 def test_fonts_has_segoe_and_cascadia():
@@ -100,7 +103,7 @@ def test_unknown_theme_falls_back_to_light(mock_ctypes_dpi):
 def test_get_returns_hex_from_current_palette(mock_ctypes_dpi):
     tm = ThemeManager()
     tm.set_theme("dark")
-    assert tm.get("accent_brand") == "#4EA1FF"
+    assert tm.get("accent_brand") == "#94B080"
 
 
 def test_get_unknown_key_returns_white_fallback(mock_ctypes_dpi):

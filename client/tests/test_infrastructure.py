@@ -82,7 +82,7 @@ def test_mock_storage_accepts_tasks(mock_storage, timestamped_task_factory):
 def test_mock_theme_manager_light(mock_theme_manager):
     """mock_theme_manager('light') → accent_brand из light палитры."""
     assert mock_theme_manager.current == "light"
-    assert mock_theme_manager.get("accent_brand") == "#1E73E8"
+    assert mock_theme_manager.get("accent_brand") == "#7A9B6B"
     assert mock_theme_manager.get("bg_primary") == "#F5EFE6"
 
 

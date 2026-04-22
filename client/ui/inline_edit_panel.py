@@ -62,7 +62,11 @@ class InlineEditPanel:
         self._mm_menu: Optional[ctk.CTkOptionMenu] = None
 
         bg = self._theme.get("bg_secondary")
-        border = self._theme.get("border_window")
+        border = self._blend_hex(
+            self._theme.get("bg_secondary"),
+            self._theme.get("text_tertiary"),
+            0.35,
+        )
 
         self._frame = ctk.CTkFrame(
             parent_frame,
@@ -87,7 +91,7 @@ class InlineEditPanel:
         self._root_window.bind("<Control-Return>", lambda e: self._save(), add="+")
 
         # Начать анимацию slide-down
-        self._slide(target_y=12, step=0)
+        self._slide(target_y=20, step=0)
 
         # Focus textbox
         try:
@@ -131,6 +135,12 @@ class InlineEditPanel:
         ctk.CTkOptionMenu(
             day_col, values=self._build_day_options(), variable=self._day_var,
             corner_radius=10, font=FONTS["body"], height=30,
+            fg_color=self._theme.get("accent_brand"),
+            button_color=self._theme.get("accent_brand"),
+            button_hover_color=self._theme.get("accent_brand_light"),
+            dropdown_fg_color=self._theme.get("bg_secondary"),
+            dropdown_text_color=self._theme.get("text_primary"),
+            text_color="#FFFFFF",
         ).pack(fill="x", pady=(2, 0))
 
         time_col = ctk.CTkFrame(grid, fg_color="transparent")
@@ -151,6 +161,12 @@ class InlineEditPanel:
             time_row, values=HH_OPTIONS, variable=self._hh_var,
             width=60, corner_radius=10, font=FONTS["mono"], height=30,
             command=lambda *_: self._on_time_enabled_implicit(True),
+            fg_color=self._theme.get("accent_brand"),
+            button_color=self._theme.get("accent_brand"),
+            button_hover_color=self._theme.get("accent_brand_light"),
+            dropdown_fg_color=self._theme.get("bg_secondary"),
+            dropdown_text_color=self._theme.get("text_primary"),
+            text_color="#FFFFFF",
         )
         self._hh_menu.pack(side="left")
         ctk.CTkLabel(time_row, text=":", font=FONTS["mono"],
@@ -159,6 +175,12 @@ class InlineEditPanel:
             time_row, values=MM_OPTIONS, variable=self._mm_var,
             width=60, corner_radius=10, font=FONTS["mono"], height=30,
             command=lambda *_: self._on_time_enabled_implicit(True),
+            fg_color=self._theme.get("accent_brand"),
+            button_color=self._theme.get("accent_brand"),
+            button_hover_color=self._theme.get("accent_brand_light"),
+            dropdown_fg_color=self._theme.get("bg_secondary"),
+            dropdown_text_color=self._theme.get("text_primary"),
+            text_color="#FFFFFF",
         )
         self._mm_menu.pack(side="left")
         ctk.CTkButton(
@@ -201,6 +223,9 @@ class InlineEditPanel:
         self._save_btn = ctk.CTkButton(
             btn_frame, text="Сохранить", width=110, height=30, corner_radius=10,
             font=FONTS["body_m"], command=self._save,
+            fg_color=self._theme.get("accent_brand"),
+            hover_color=self._theme.get("accent_brand_light"),
+            text_color="#FFFFFF",
         )
         self._save_btn.pack(side="right")
 
@@ -423,3 +448,16 @@ class InlineEditPanel:
             self._frame.destroy()
         except tk.TclError:
             pass
+
+    @staticmethod
+    def _blend_hex(a: str, b: str, t: float) -> str:
+        """Линейный блендинг двух hex-цветов. t=0 → a, t=1 → b."""
+        def _parse(h: str) -> tuple[int, int, int]:
+            h = h.lstrip("#")
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        ar, ag, ab = _parse(a)
+        br, bg, bb = _parse(b)
+        r = int(ar + (br - ar) * t)
+        g = int(ag + (bg - ag) * t)
+        bl = int(ab + (bb - ab) * t)
+        return f"#{r:02X}{g:02X}{bl:02X}"
