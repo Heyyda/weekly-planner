@@ -105,17 +105,21 @@ class MainWindow:
         self._week_nav: Optional[WeekNavigation] = None
         self._edit_panel: Optional[InlineEditPanel] = None
 
-        # UX v2: кастомный title-bar + resize grip вместо native Windows frame
+        # UX v2: кастомный title-bar + edge resize zones вместо native Windows frame
         self._header_frame: Optional[ctk.CTkFrame] = None
         self._header_title_lbl: Optional[ctk.CTkLabel] = None
         self._header_close_btn: Optional[ctk.CTkLabel] = None
-        self._resize_grip: Optional[ctk.CTkLabel] = None
         self._drag_offset_x = 0
         self._drag_offset_y = 0
         self._resize_start_w = 0
         self._resize_start_h = 0
         self._resize_start_x = 0
         self._resize_start_y = 0
+        # Quick 260422-tah: resize по всему периметру вместо одного grip-а.
+        self._resize_edge: Optional[str] = None
+        self._resize_start_win_x = 0
+        self._resize_start_win_y = 0
+        self._edge_zones: list = []  # список CTkFrame зон, чтобы lift() / theme update
 
         self._build_ui()
         self._theme.subscribe(self._apply_theme)
@@ -317,10 +321,10 @@ class MainWindow:
             on_task_moved=self._on_task_moved,
         )
 
-        # UX v2: resize-grip в правом нижнем углу
-        self._build_resize_grip(self._root_frame)
-
         self._rebuild_day_sections()
+
+        # Quick 260422-tah: edge-zones создаются последними, чтобы lift() поверх всего контента.
+        self._build_edge_resizers(self._root_frame)
 
     # ---- UX v2: Custom title bar + drag-to-move + resize grip ----
 
@@ -415,42 +419,111 @@ class MainWindow:
         except tk.TclError:
             pass
 
-    def _build_resize_grip(self, parent: ctk.CTkFrame) -> None:
-        """UX v2: resize-grip ⤡ в правом нижнем углу."""
-        text_ter = self._theme.get("text_tertiary")
-        grip = ctk.CTkLabel(
-            parent, text="⤡", font=FONTS["body_m"],
-            text_color=text_ter, cursor="bottom_right_corner",
-            width=16, height=16,
-        )
-        grip.place(relx=1.0, rely=1.0, anchor="se", x=-4, y=-4)
-        grip.lift()
-        grip.bind("<ButtonPress-1>", self._on_grip_drag_start)
-        grip.bind("<B1-Motion>", self._on_grip_drag_motion)
-        self._resize_grip = grip
+    def _build_edge_resizers(self, parent: ctk.CTkFrame) -> None:
+        """Quick 260422-tah: 8 невидимых edge-zones по периметру окна.
 
-    def _on_grip_drag_start(self, event) -> None:
-        """Запомнить начальный размер и позицию курсора."""
+        4 стороны (N/S/E/W) как 6px полоски + 4 угла (NW/NE/SW/SE) 10×10.
+        Каждая зона перехватывает ButtonPress/B1-Motion/Release и вызывает
+        `_on_edge_press/drag/release`. Углы создаются ПОСЛЕ сторон — так
+        их cursor перекрывает cursor стороны в зоне пересечения.
+        """
+        # Порядок: сначала 4 стороны, потом 4 угла (важно для lift()).
+        # CustomTkinter требует width/height в конструкторе, не в place().
+        edges: list[tuple[str, str, tuple[int, int], dict]] = [
+            # (edge_name, cursor, (width, height) для конструктора, place kwargs)
+            # top
+            ("n", "sb_v_double_arrow", (0, 6),
+             {"relx": 0, "rely": 0, "relwidth": 1}),
+            # bottom
+            ("s", "sb_v_double_arrow", (0, 6),
+             {"relx": 0, "rely": 1.0, "relwidth": 1, "anchor": "sw"}),
+            # left
+            ("w", "sb_h_double_arrow", (6, 0),
+             {"relx": 0, "rely": 0, "relheight": 1}),
+            # right
+            ("e", "sb_h_double_arrow", (6, 0),
+             {"relx": 1.0, "rely": 0, "relheight": 1, "anchor": "ne"}),
+            # nw corner
+            ("nw", "size_nw_se", (10, 10),
+             {"relx": 0, "rely": 0}),
+            # ne corner
+            ("ne", "size_ne_sw", (10, 10),
+             {"relx": 1.0, "rely": 0, "anchor": "ne"}),
+            # sw corner
+            ("sw", "size_ne_sw", (10, 10),
+             {"relx": 0, "rely": 1.0, "anchor": "sw"}),
+            # se corner
+            ("se", "size_nw_se", (10, 10),
+             {"relx": 1.0, "rely": 1.0, "anchor": "se"}),
+        ]
+        for edge_name, cursor, (zw, zh), place_kwargs in edges:
+            # width/height=0 + relwidth/relheight — допустимый приём для 1-мерных полос.
+            frame_kwargs = {"fg_color": "transparent"}
+            if zw > 0:
+                frame_kwargs["width"] = zw
+            if zh > 0:
+                frame_kwargs["height"] = zh
+            zone = ctk.CTkFrame(parent, **frame_kwargs)
+            zone.place(**place_kwargs)
+            try:
+                zone.configure(cursor=cursor)
+            except tk.TclError:
+                pass
+            zone.bind(
+                "<ButtonPress-1>",
+                lambda e, edge=edge_name: self._on_edge_press(e, edge),
+            )
+            zone.bind("<B1-Motion>", self._on_edge_drag)
+            zone.bind("<ButtonRelease-1>", self._on_edge_release)
+            zone.lift()
+            self._edge_zones.append(zone)
+
+    def _on_edge_press(self, event, edge: str) -> None:
+        """Запомнить начальные размеры и позицию окна для последующего drag-а."""
+        self._resize_edge = edge
         try:
-            self._resize_start_w = self._window.winfo_width()
-            self._resize_start_h = self._window.winfo_height()
             self._resize_start_x = event.x_root
             self._resize_start_y = event.y_root
+            self._resize_start_w = self._window.winfo_width()
+            self._resize_start_h = self._window.winfo_height()
+            self._resize_start_win_x = self._window.winfo_x()
+            self._resize_start_win_y = self._window.winfo_y()
         except tk.TclError:
-            pass
+            self._resize_edge = None
 
-    def _on_grip_drag_motion(self, event) -> None:
-        """Изменить размер окна, соблюдая MIN_SIZE."""
+    def _on_edge_drag(self, event) -> None:
+        """Пересчитать geometry исходя из того, какие стороны активны в edge-строке."""
+        if not self._resize_edge:
+            return
         try:
             dx = event.x_root - self._resize_start_x
             dy = event.y_root - self._resize_start_y
-            new_w = max(self.MIN_SIZE[0], self._resize_start_w + dx)
-            new_h = max(self.MIN_SIZE[1], self._resize_start_h + dy)
-            x = self._window.winfo_x()
-            y = self._window.winfo_y()
-            self._window.geometry(f"{new_w}x{new_h}+{x}+{y}")
+            new_w = self._resize_start_w
+            new_h = self._resize_start_h
+            new_x = self._resize_start_win_x
+            new_y = self._resize_start_win_y
+            if "e" in self._resize_edge:
+                new_w = max(self.MIN_SIZE[0], self._resize_start_w + dx)
+            if "w" in self._resize_edge:
+                proposed_w = max(self.MIN_SIZE[0], self._resize_start_w - dx)
+                new_x = self._resize_start_win_x + (self._resize_start_w - proposed_w)
+                new_w = proposed_w
+            if "s" in self._resize_edge:
+                new_h = max(self.MIN_SIZE[1], self._resize_start_h + dy)
+            if "n" in self._resize_edge:
+                proposed_h = max(self.MIN_SIZE[1], self._resize_start_h - dy)
+                new_y = self._resize_start_win_y + (self._resize_start_h - proposed_h)
+                new_h = proposed_h
+            self._window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
         except tk.TclError:
             pass
+
+    def _on_edge_release(self, event) -> None:
+        """Сохранить новый размер/позицию в settings.json."""
+        if self._resize_edge is None:
+            return
+        self._resize_edge = None
+        self._save_window_state()
 
     # ---- Week navigation callbacks ----
 
@@ -748,7 +821,5 @@ class MainWindow:
                 self._header_title_lbl.configure(text_color=text_ter)
             if self._header_close_btn and self._header_close_btn.winfo_exists():
                 self._header_close_btn.configure(text_color=text_sec)
-            if self._resize_grip and self._resize_grip.winfo_exists():
-                self._resize_grip.configure(text_color=text_ter)
         except tk.TclError:
             pass
