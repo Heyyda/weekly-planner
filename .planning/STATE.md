@@ -158,9 +158,10 @@ None yet.
 | 260421-uxy | UI: новая иконка (крем+синий акцент), рамка 1px главного окна, overlay 56→73px (+30%), явный resize | 2026-04-21 | 9160292 | [260421-uxy-ui-border-width-1-overlay-30-56-73px-off](./quick/260421-uxy-ui-border-width-1-overlay-30-56-73px-off/) |
 | 260421-vk4 | DnD fix: перенос задачи на пустой день — DropZone регистрируется на self.frame вместо _body_frame | 2026-04-21 | 076cc69 | [260421-vk4-dnd-dropzone-ds-frame-body-frame](./quick/260421-vk4-dnd-dropzone-ds-frame-body-frame/) |
 | 260421-vxz | UX polish: diff-rebuild недели + sync→UI callback + Alt+Z + fade show/hide | 2026-04-21 | 485bee6, e98152d, b18da5e, 444d70e | [260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-](./quick/260421-vxz-ux-polish-diff-rebuild-sync-ui-callback-/) |
+| 260422-sue | Главное окно скрыто из taskbar и Alt+Tab: инвертирована EX_STYLE-маска `_apply_borderless` (WS_EX_TOOLWINDOW вместо WS_EX_APPWINDOW) | 2026-04-22 | 84b1f90 | [260422-sue-taskbar-ws-ex-toolwindow-ws-ex-appwindow](./quick/260422-sue-taskbar-ws-ex-toolwindow-ws-ex-appwindow/) |
 
 ## Session Continuity
 
-Last session: 2026-04-16T11:49:13.069Z
-Stopped at: Phase 4 context + UI-SPEC + prototype approved
+Last session: 2026-04-22T00:00:00.000Z
+Stopped at: Quick 260422-sue — WS_EX_TOOLWINDOW применён, ожидание UAT от владельца
 Resume file: .planning/phases/04-week-tasks/04-CONTEXT.md
