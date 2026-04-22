@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 DAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MONTH_NAMES_RU = ['', 'янв', 'фев', 'мар', 'апр', 'май', 'июн',
                   'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
-HH_OPTIONS = [f"{h:02d}" for h in range(24)]
-MM_OPTIONS = [f"{m:02d}" for m in range(0, 60, 5)]
+HH_OPTIONS = ["—"] + [f"{h:02d}" for h in range(24)]
+MM_OPTIONS = ["—"] + [f"{m:02d}" for m in range(0, 60, 5)]
 
 
 class InlineEditPanel:
@@ -154,8 +154,9 @@ class InlineEditPanel:
 
         cur_hh, cur_mm, has_time = self._current_time_parts()
         self._time_enabled_var = tk.BooleanVar(value=has_time)
-        self._hh_var = ctk.StringVar(value=cur_hh if has_time else "09")
-        self._mm_var = ctk.StringVar(value=cur_mm if has_time else "00")
+        # Quick 260422-v1a: placeholder '—' вместо '09:00' когда время не задано
+        self._hh_var = ctk.StringVar(value=cur_hh if has_time else "—")
+        self._mm_var = ctk.StringVar(value=cur_mm if has_time else "—")
 
         self._hh_menu = ctk.CTkOptionMenu(
             time_row, values=HH_OPTIONS, variable=self._hh_var,
@@ -189,8 +190,8 @@ class InlineEditPanel:
             hover_color=self._theme.get("bg_tertiary"),
             command=self._clear_time,
         ).pack(side="left", padx=(6, 0))
-        if not has_time:
-            self._set_time_menus_dim(True)
+        # Quick 260422-v1a: '—' placeholder сам визуально показывает отсутствие
+        # времени — дополнительный dim через _set_time_menus_dim не нужен.
 
         # Recurrence toggle — еженедельное повторение (Quick 260422-v1a).
         # Заменяет бывший Done checkbox — done управляется кликом по чекбоксу
@@ -305,23 +306,32 @@ class InlineEditPanel:
         return ("09", "00", False)
 
     def _clear_time(self) -> None:
+        """Сброс времени через ✕: выключить enabled + оба dropdown на '—'."""
         if self._time_enabled_var is not None:
             self._time_enabled_var.set(False)
-        self._set_time_menus_dim(True)
+        if self._hh_var is not None:
+            self._hh_var.set("—")
+        if self._mm_var is not None:
+            self._mm_var.set("—")
 
     def _on_time_enabled_implicit(self, enabled: bool) -> None:
+        """Callback OptionMenu: выбор '—' в любом dropdown → выключить time_enabled."""
+        if self._hh_var and self._mm_var:
+            hh = self._hh_var.get()
+            mm = self._mm_var.get()
+            if hh == "—" or mm == "—":
+                if self._time_enabled_var is not None:
+                    self._time_enabled_var.set(False)
+                return
         if self._time_enabled_var is not None:
             self._time_enabled_var.set(enabled)
-        self._set_time_menus_dim(not enabled)
 
     def _set_time_menus_dim(self, dim: bool) -> None:
-        color = self._theme.get("text_tertiary") if dim else self._theme.get("text_primary")
-        for menu in (self._hh_menu, self._mm_menu):
-            try:
-                if menu is not None:
-                    menu.configure(text_color=color)
-            except (tk.TclError, AttributeError):
-                pass
+        """Quick 260422-v1a: '—' placeholder сам показывает отсутствие времени,
+        дополнительный dim text_color больше не нужен. Оставлен как no-op, чтобы
+        не ломать возможные внешние вызовы.
+        """
+        return
 
     # ---- Day helpers (скопировано из EditDialog) ----
 
@@ -391,11 +401,14 @@ class InlineEditPanel:
         if not text:
             return
         day_iso = self._day_label_to_iso(self._day_var.get()) if self._day_var else self._task.day
+        # Quick 260422-v1a: double-guard — time_val=None если ЛЮБОЙ из dropdown
+        # на '—' или time_enabled выключен.
         time_val: Optional[str] = None
         if self._time_enabled_var and self._time_enabled_var.get():
-            hh = self._hh_var.get() if self._hh_var else "09"
-            mm = self._mm_var.get() if self._mm_var else "00"
-            time_val = f"{hh}:{mm}"
+            hh = self._hh_var.get() if self._hh_var else "—"
+            mm = self._mm_var.get() if self._mm_var else "—"
+            if hh != "—" and mm != "—":
+                time_val = f"{hh}:{mm}"
 
         # Quick 260422-v1a: done сохраняем как был (toggle теперь только через
         # чекбокс в TaskWidget); recurrence читаем из нового чекбокса.
