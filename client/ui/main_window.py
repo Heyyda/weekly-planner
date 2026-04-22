@@ -325,7 +325,7 @@ class MainWindow:
     # ---- UX v2: Custom title bar + drag-to-move + resize grip ----
 
     def _apply_borderless(self) -> None:
-        """UX v2: убрать native title bar. Сохранить taskbar через WS_EX_APPWINDOW.
+        """UX v2: убрать native title bar и скрыть из taskbar/Alt+Tab через WS_EX_TOOLWINDOW.
 
         PITFALL 1 (Win11 DWM): overrideredirect должен вызываться после after(100, ...).
         PITFALL 6: ctypes.windll.user32.GetParent может вернуть 0 — graceful try/except.
@@ -336,7 +336,7 @@ class MainWindow:
             logger.debug("overrideredirect failed: %s", exc)
             return
 
-        # WS_EX_APPWINDOW — сохранить окно в taskbar и Alt+Tab
+        # WS_EX_TOOLWINDOW — скрыть окно из taskbar и Alt+Tab (overlay+tray остаются видны)
         try:
             hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
             if not hwnd:
@@ -345,7 +345,7 @@ class MainWindow:
             WS_EX_APPWINDOW = 0x00040000
             WS_EX_TOOLWINDOW = 0x00000080
             current = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            new = (current & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+            new = (current & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
             ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new)
             # Re-apply style: withdraw/deiconify цикл — только если окно видимо
             # (на первом старте окно withdraw'нуто, значит flash не случится).
