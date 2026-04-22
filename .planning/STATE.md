@@ -162,9 +162,10 @@ None yet.
 | 260422-tah | Resize по всем 8 edge-zones главного окна (замена single grip) + редизайн UpdateBanner 420×170 с accent-strip, круглой иконкой, CTkProgressBar и slide+fade анимацией | 2026-04-22 | 3368198, c445dd3 | [260422-tah-resize-redesign-updatebanner](./quick/260422-tah-resize-redesign-updatebanner/) |
 | 260422-ugq | Sage accent_brand во всех палитрах (light/dark/beige) + inline-edit панель: явные sage OptionMenu/Save, soft border через hex-blend, top-отступ 20px | 2026-04-22 | 5f2a037 | [260422-ugq-sage-accent-brand-inline-edit-panel-cosm](./quick/260422-ugq-sage-accent-brand-inline-edit-panel-cosm/) |
 | 260422-v1a | UX-пак: weekly recurrence (toggle + автоклон + 🔁) + time '—' placeholder + надёжный window-persist (debounced + hide trigger) + QuickCapture redesign 360×140 со screen-clamp | 2026-04-22 | 69327da, 1049930, 65460e9, 9be7ea0 | [260422-v1a-ux-recurrence-weekly-time-placeholder-wi](./quick/260422-v1a-ux-recurrence-weekly-time-placeholder-wi/) |
+| 260422-vvn | Cross-week DnD: sage-pill зоны «◀ Предыдущая неделя» / «Следующая неделя ▶» во время drag → drop переносит задачу на ±7 дней и переключает UI на ту неделю | 2026-04-22 | 87f5dd6 | [260422-vvn-dnd-cross-week-prev-next-week-drop-zones](./quick/260422-vvn-dnd-cross-week-prev-next-week-drop-zones/) |
 
 ## Session Continuity
 
-Last session: 2026-04-22T19:36:00.000Z
-Stopped at: Quick 260422-v1a — recurrence weekly + time '—' + window-persist + QuickCapture redesign, ожидание UAT
+Last session: 2026-04-22T20:15:00.000Z
+Stopped at: Quick 260422-vvn — cross-week DnD pills (±7 дней), ожидание UAT
 Resume file: .planning/phases/04-week-tasks/04-CONTEXT.md
