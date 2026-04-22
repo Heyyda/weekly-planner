@@ -233,6 +233,131 @@ def test_next_week_zone_shown_on_drag_start(dc_deps):
     dc.destroy()
 
 
+# ---------- Quick 260422-vvn: cross-week DnD ----------
+
+def test_dropzone_prev_week_flag():
+    """DropZone.is_prev_week — новое поле для cross-week DnD."""
+    z = DropZone(day_date=date.today(), frame=MagicMock(), is_prev_week=True)
+    assert z.is_prev_week is True
+    assert z.is_next_week is False
+
+
+def test_week_jump_callback_optional():
+    """DragController.__init__ должен принимать on_week_jump как Optional
+    (обратная совместимость — старые вызовы без этого kwarg работают).
+    """
+    sig = inspect.signature(DragController.__init__)
+    params = sig.parameters
+    assert "on_week_jump" in params
+    assert params["on_week_jump"].default is None
+
+
+def test_both_cross_week_zones_shown_on_drag_start(dc_deps):
+    """_show_week_jump_zones() пакует И prev, И next pill на старте drag."""
+    dc = _make(dc_deps)
+    prev_frame = MagicMock()
+    next_frame = MagicMock()
+    dc.register_drop_zone(DropZone(
+        day_date=date.min, frame=prev_frame, is_prev_week=True,
+    ))
+    dc.register_drop_zone(DropZone(
+        day_date=date.max, frame=next_frame, is_next_week=True,
+    ))
+    src = DropZone(day_date=date.today(), frame=MagicMock())
+    dc.register_drop_zone(src)
+
+    press = dc_deps["dnd_event"](x_root=0, y_root=0, x=0, y=0)
+    dc._on_press(press, "t1", "text", src, MagicMock())
+    move = dc_deps["dnd_event"](x_root=50, y_root=50)
+    dc._on_motion(move)
+
+    prev_frame.pack.assert_called()
+    next_frame.pack.assert_called()
+    dc.destroy()
+
+
+def test_drop_on_prev_week_pill_triggers_callback(dc_deps):
+    """Drop на prev-week pill → on_week_jump(-1, task_id), НЕ on_task_moved."""
+    on_jump = MagicMock()
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=on_jump,
+    )
+    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
+    prev_zone = DropZone(
+        day_date=date.min,
+        frame=_make_frame_mock(0, 100, 300, 40),
+        is_prev_week=True,
+    )
+    dc.register_drop_zone(src)
+    dc.register_drop_zone(prev_zone)
+    dc._dragging = True
+    dc._source_zone = src
+    dc._source_task_id = "task-X"
+    dc._source_widget = MagicMock()
+
+    rel = dc_deps["dnd_event"](x_root=150, y_root=120)
+    dc._on_release(rel)
+
+    on_jump.assert_called_once_with(-1, "task-X")
+    dc_deps["on_moved"].assert_not_called()
+    dc.destroy()
+
+
+def test_drop_on_next_week_pill_triggers_callback(dc_deps):
+    """Drop на next-week pill → on_week_jump(+1, task_id)."""
+    on_jump = MagicMock()
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=on_jump,
+    )
+    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
+    next_zone = DropZone(
+        day_date=date.max,
+        frame=_make_frame_mock(0, 100, 300, 40),
+        is_next_week=True,
+    )
+    dc.register_drop_zone(src)
+    dc.register_drop_zone(next_zone)
+    dc._dragging = True
+    dc._source_zone = src
+    dc._source_task_id = "task-Y"
+    dc._source_widget = MagicMock()
+
+    rel = dc_deps["dnd_event"](x_root=150, y_root=120)
+    dc._on_release(rel)
+
+    on_jump.assert_called_once_with(1, "task-Y")
+    dc_deps["on_moved"].assert_not_called()
+    dc.destroy()
+
+
+def test_cross_week_zones_hidden_on_cancel(dc_deps):
+    """Cancel-drop (drop в пустоту) вызывает pack_forget на pills."""
+    dc = _make(dc_deps)
+    prev_frame = MagicMock()
+    next_frame = MagicMock()
+    dc.register_drop_zone(DropZone(
+        day_date=date.min, frame=prev_frame, is_prev_week=True,
+    ))
+    dc.register_drop_zone(DropZone(
+        day_date=date.max, frame=next_frame, is_next_week=True,
+    ))
+    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
+    dc.register_drop_zone(src)
+    dc._dragging = True
+    dc._source_zone = src
+    dc._source_task_id = "task-cancel"
+    dc._source_widget = MagicMock()
+
+    rel = dc_deps["dnd_event"](x_root=9999, y_root=9999)
+    dc._on_release(rel)
+
+    prev_frame.pack_forget.assert_called()
+    next_frame.pack_forget.assert_called()
+    dc.destroy()
+
+
 # ---------- Markers ----------
 
 def test_drag_threshold_constant():

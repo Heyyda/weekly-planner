@@ -24,6 +24,7 @@ class DropZone:
     frame: ctk.CTkBaseClass
     is_archive: bool = False
     is_next_week: bool = False
+    is_prev_week: bool = False
 
     def get_bbox(self) -> tuple[int, int, int, int]:
         w = self.frame
@@ -119,10 +120,12 @@ class DragController:
         root: ctk.CTk,
         theme_manager,
         on_task_moved: Callable[[str, date], None],
+        on_week_jump: Optional[Callable[[int, str], None]] = None,
     ) -> None:
         self._root = root
         self._theme = theme_manager
         self._on_task_moved = on_task_moved
+        self._on_week_jump = on_week_jump
 
         self._drop_zones: list[DropZone] = []
 
@@ -226,11 +229,26 @@ class DragController:
             return
 
         target = self._find_drop_zone(event.x_root, event.y_root)
-        if (
-            target is not None
-            and target != self._source_zone
-            and not target.is_archive
-        ):
+        if target is None or target.is_archive:
+            self._cancel_drag()
+            return
+
+        # Cross-week jump имеет приоритет над same-day drop.
+        if target.is_prev_week or target.is_next_week:
+            direction = -1 if target.is_prev_week else 1
+            task_id = self._source_task_id
+            self._ghost.hide()
+            self._clear_all_highlights()
+            self._hide_week_jump_zones()
+            try:
+                if task_id and self._on_week_jump:
+                    self._on_week_jump(direction, task_id)
+            except Exception as exc:
+                logger.error("on_week_jump failed: %s", exc)
+            self._reset_state()
+            return
+
+        if target != self._source_zone:
             self._commit_drop(target)
         else:
             self._cancel_drag()
@@ -247,16 +265,14 @@ class DragController:
             widget_w, widget_h = 300, 40
         self._ghost.show(self._source_task_text, widget_w, widget_h, ghost_x, ghost_y)
 
-        # D-25: показать next-week zone
-        for zone in self._drop_zones:
-            if zone.is_next_week:
-                self._show_next_week_zone(zone)
+        # D-25: показать обе cross-week zones (prev + next).
+        self._show_week_jump_zones()
 
     def _commit_drop(self, target: DropZone) -> None:
         """D-26: valid drop → callback."""
         self._ghost.hide()
         self._clear_all_highlights()
-        self._hide_next_week_zones()
+        self._hide_week_jump_zones()
 
         task_id = self._source_task_id
         try:
@@ -270,7 +286,7 @@ class DragController:
         """D-26: invalid drop → hide, reset."""
         self._ghost.hide()
         self._clear_all_highlights()
-        self._hide_next_week_zones()
+        self._hide_week_jump_zones()
         self._reset_state()
         logger.debug("DnD cancelled")
 
@@ -300,7 +316,10 @@ class DragController:
         if hovered == self._hovered_zone:
             return
 
-        if self._hovered_zone is not None:
+        if self._hovered_zone is not None and not (
+            self._hovered_zone.is_prev_week or self._hovered_zone.is_next_week
+        ):
+            # Cross-week pills не тронуты в active-ветке — сбрасывать sage-цвет не нужно.
             self._set_zone_highlight(self._hovered_zone, "normal")
 
         if (
@@ -308,17 +327,25 @@ class DragController:
             and not hovered.is_archive
             and hovered != self._source_zone
         ):
-            self._set_zone_highlight(hovered, "active")
+            # Cross-week pills имеют собственный sage fg_color — не трогаем их подсветку.
+            if not hovered.is_prev_week and not hovered.is_next_week:
+                self._set_zone_highlight(hovered, "active")
             for zone in self._drop_zones:
                 if (
                     zone is not hovered
                     and zone is not self._source_zone
                     and not zone.is_archive
+                    and not zone.is_prev_week
+                    and not zone.is_next_week
                 ):
                     self._set_zone_highlight(zone, "adjacent")
         else:
             for zone in self._drop_zones:
-                if zone is not self._source_zone:
+                if (
+                    zone is not self._source_zone
+                    and not zone.is_prev_week
+                    and not zone.is_next_week
+                ):
                     self._set_zone_highlight(zone, "normal")
         self._hovered_zone = hovered
 
@@ -344,17 +371,37 @@ class DragController:
 
     def _clear_all_highlights(self) -> None:
         for zone in self._drop_zones:
+            # Не сбрасываем sage fg_color cross-week pills — для них normal == скрыто.
+            if zone.is_prev_week or zone.is_next_week:
+                continue
             self._set_zone_highlight(zone, "normal")
 
-    def _show_next_week_zone(self, zone: DropZone) -> None:
-        try:
-            zone.frame.pack(fill="x", pady=(8, 4))
-        except Exception:
-            pass
+    def _show_week_jump_zones(self) -> None:
+        """Показать обе pill-зоны (prev + next) при старте drag.
 
-    def _hide_next_week_zones(self) -> None:
+        Pack использует те же опции что и повторный pack в Tk — pack_forget
+        сохраняет предыдущие опции, поэтому последующий pack() без аргументов
+        восстановит предыдущий pack-контракт. Указываем опции явно чтобы
+        гарантировать корректное позиционирование на первом показе.
+        """
         for zone in self._drop_zones:
-            if zone.is_next_week:
+            if zone.is_prev_week:
+                try:
+                    zone.frame.pack(fill="x", padx=12, pady=(4, 4), side="top")
+                    zone.frame.lift()
+                except Exception:
+                    pass
+            elif zone.is_next_week:
+                try:
+                    zone.frame.pack(fill="x", padx=12, pady=(4, 4), side="bottom")
+                    zone.frame.lift()
+                except Exception:
+                    pass
+
+    def _hide_week_jump_zones(self) -> None:
+        """Скрыть обе pill-зоны после drop/cancel."""
+        for zone in self._drop_zones:
+            if zone.is_prev_week or zone.is_next_week:
                 try:
                     zone.frame.pack_forget()
                 except Exception:

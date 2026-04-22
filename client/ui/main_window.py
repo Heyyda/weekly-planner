@@ -159,6 +159,9 @@ class MainWindow:
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
         self._edit_panel: Optional[InlineEditPanel] = None
+        # Quick 260422-vvn: cross-week DnD pills (sage), pack'ятся на время drag.
+        self._prev_week_zone: Optional[ctk.CTkFrame] = None
+        self._next_week_zone: Optional[ctk.CTkFrame] = None
         # Quick 260422-v1a: debounced persist window geometry через _on_configure
         self._save_window_state_after_id: Optional[str] = None
 
@@ -376,6 +379,39 @@ class MainWindow:
         self._scroll = ctk.CTkScrollableFrame(self._root_frame)
         self._scroll.pack(fill="both", expand=True, padx=8, pady=4)
 
+        # Quick 260422-vvn: Cross-week DnD pills (sage accent).
+        # Скрыты по умолчанию — pack/unpack управляется DragController
+        # через _show/_hide_week_jump_zones() на старте/конце drag-цикла.
+        # Parent = _root_frame (а не _scroll), чтобы pill'ы всегда были видны
+        # поверх scroll-контента, без необходимости подстраиваться под scroll-позицию.
+        sage = self._theme.get("accent_brand")
+        self._prev_week_zone = ctk.CTkFrame(
+            self._root_frame,
+            fg_color=sage,
+            corner_radius=14,
+            height=36,
+        )
+        ctk.CTkLabel(
+            self._prev_week_zone,
+            text="◀  Предыдущая неделя",
+            text_color="#FFFFFF",
+            font=FONTS["body_m"],
+        ).pack(expand=True, fill="both")
+
+        self._next_week_zone = ctk.CTkFrame(
+            self._root_frame,
+            fg_color=sage,
+            corner_radius=14,
+            height=36,
+        )
+        ctk.CTkLabel(
+            self._next_week_zone,
+            text="Следующая неделя  ▶",
+            text_color="#FFFFFF",
+            font=FONTS["body_m"],
+        ).pack(expand=True, fill="both")
+        # Намеренно НЕ pack'им — будут pack'иться только во время drag.
+
         self._undo_toast = UndoToastManager(
             self._root_frame, self._root, self._theme,
         )
@@ -383,6 +419,7 @@ class MainWindow:
         self._drag_controller = DragController(
             self._root, self._theme,
             on_task_moved=self._on_task_moved,
+            on_week_jump=self._on_week_jump,
         )
 
         self._rebuild_day_sections()
@@ -620,6 +657,23 @@ class MainWindow:
                 zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                 self._drag_controller.register_drop_zone(zone)
 
+        # Quick 260422-vvn: регистрация cross-week pills (prev + next).
+        # day_date=date.min/max — placeholder, не используется в hit-test
+        # (DropZone.contains() полагается на frame.winfo_rootx/y).
+        if self._drag_controller is not None:
+            if self._prev_week_zone is not None:
+                self._drag_controller.register_drop_zone(DropZone(
+                    day_date=date.min,
+                    frame=self._prev_week_zone,
+                    is_prev_week=True,
+                ))
+            if self._next_week_zone is not None:
+                self._drag_controller.register_drop_zone(DropZone(
+                    day_date=date.max,
+                    frame=self._next_week_zone,
+                    is_next_week=True,
+                ))
+
         if self._week_nav.is_current_archive():
             self._on_archive_changed(True)
 
@@ -660,6 +714,21 @@ class MainWindow:
                 for d, ds in self._day_sections.items():
                     zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                     self._drag_controller.register_drop_zone(zone)
+                # Quick 260422-vvn: перерегистрация cross-week pills после
+                # clear_drop_zones — иначе после переключения недели prev/next
+                # pills перестают работать.
+                if self._prev_week_zone is not None:
+                    self._drag_controller.register_drop_zone(DropZone(
+                        day_date=date.min,
+                        frame=self._prev_week_zone,
+                        is_prev_week=True,
+                    ))
+                if self._next_week_zone is not None:
+                    self._drag_controller.register_drop_zone(DropZone(
+                        day_date=date.max,
+                        frame=self._next_week_zone,
+                        is_next_week=True,
+                    ))
             except Exception as exc:
                 logger.debug("_update_week drop zone refresh failed: %s", exc)
 
@@ -794,6 +863,33 @@ class MainWindow:
         if self._storage is None:
             return
         self._storage.update_task(task_id, day=new_day.isoformat())
+        self._refresh_tasks()
+
+    def _on_week_jump(self, direction: int, task_id: str) -> None:
+        """Quick 260422-vvn: cross-week DnD — перенести задачу на ±7 дней
+        и переключить UI на ту неделю.
+
+        direction = -1 → предыдущая неделя, +1 → следующая.
+        После update_task вызываем WeekNavigation.set_week_monday, который
+        триггерит on_week_changed → _update_week (diff-rebuild без мерцания).
+        """
+        if self._storage is None or self._week_nav is None:
+            return
+        task = self._storage.get_task(task_id)
+        if task is None:
+            return
+        try:
+            current_day = date.fromisoformat(task.day)
+        except (ValueError, TypeError):
+            return
+        new_day = current_day + timedelta(days=7 * direction)
+        self._storage.update_task(task_id, day=new_day.isoformat())
+        # Переключить UI на неделю с новой задачей.
+        new_week_monday = new_day - timedelta(days=new_day.weekday())
+        self._week_nav.set_week_monday(new_week_monday)
+        # set_week_monday → on_week_changed → _update_week + _refresh_tasks
+        # через существующую цепочку. Дополнительный _refresh_tasks тут —
+        # защита от крайнего случая, когда callback не выполнен синхронно.
         self._refresh_tasks()
 
     # ---- Phase 3 persistence ----

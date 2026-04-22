@@ -192,8 +192,79 @@ def test_main_window_has_drag_controller(mw_phase4_deps):
 
 
 def test_drag_controller_has_seven_drop_zones(mw_phase4_deps):
+    """7 day-zones + 2 cross-week pills (prev/next) = 9 зон после Quick 260422-vvn."""
     mw = _make_mw_p4(mw_phase4_deps)
-    assert len(mw._drag_controller._drop_zones) == 7
+    zones = mw._drag_controller._drop_zones
+    day_zones = [z for z in zones if not z.is_prev_week and not z.is_next_week]
+    assert len(day_zones) == 7
+    assert len(zones) == 9
+    mw.destroy()
+
+
+def test_cross_week_pills_registered(mw_phase4_deps):
+    """Quick 260422-vvn: prev+next week pills зарегистрированы как DropZone."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    zones = mw._drag_controller._drop_zones
+    prev_zones = [z for z in zones if z.is_prev_week]
+    next_zones = [z for z in zones if z.is_next_week]
+    assert len(prev_zones) == 1
+    assert len(next_zones) == 1
+    assert mw._prev_week_zone is not None
+    assert mw._next_week_zone is not None
+    mw.destroy()
+
+
+def test_on_week_jump_prev_moves_task_and_switches_week(mw_phase4_deps, timestamped_task_factory):
+    """Quick 260422-vvn: drop на prev-week pill → task.day -=7 + UI на ту неделю."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(day_offset=0)
+    mw_phase4_deps["storage"].add_task(task)
+    old_monday = mw._week_nav.get_week_monday()
+
+    mw._on_week_jump(-1, task.id)
+
+    updated = mw_phase4_deps["storage"].get_task(task.id)
+    expected_day = date.fromisoformat(task.day) + timedelta(days=-7)
+    assert updated.day == expected_day.isoformat()
+    new_monday = mw._week_nav.get_week_monday()
+    assert new_monday == old_monday - timedelta(days=7)
+    mw.destroy()
+
+
+def test_on_week_jump_next_moves_task_and_switches_week(mw_phase4_deps, timestamped_task_factory):
+    """Quick 260422-vvn: drop на next-week pill → task.day +=7 + UI на ту неделю."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    task = timestamped_task_factory(day_offset=0)
+    mw_phase4_deps["storage"].add_task(task)
+    old_monday = mw._week_nav.get_week_monday()
+
+    mw._on_week_jump(1, task.id)
+
+    updated = mw_phase4_deps["storage"].get_task(task.id)
+    expected_day = date.fromisoformat(task.day) + timedelta(days=7)
+    assert updated.day == expected_day.isoformat()
+    new_monday = mw._week_nav.get_week_monday()
+    assert new_monday == old_monday + timedelta(days=7)
+    mw.destroy()
+
+
+def test_on_week_jump_unknown_task_is_noop(mw_phase4_deps):
+    """Quick 260422-vvn: on_week_jump с несуществующим task_id не падает."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    old_monday = mw._week_nav.get_week_monday()
+    mw._on_week_jump(1, "nonexistent-task-id")
+    assert mw._week_nav.get_week_monday() == old_monday
+    mw.destroy()
+
+
+def test_week_change_re_registers_cross_week_pills(mw_phase4_deps):
+    """Quick 260422-vvn: после смены недели prev/next pills остаются registered."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    mw._week_nav.next_week()
+    mw_phase4_deps["root"].update_idletasks()
+    zones = mw._drag_controller._drop_zones
+    assert any(z.is_prev_week for z in zones), "prev-week pill пропал после next_week()"
+    assert any(z.is_next_week for z in zones), "next-week pill пропал после next_week()"
     mw.destroy()
 
 
