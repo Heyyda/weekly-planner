@@ -17,7 +17,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from client.app import WeeklyPlannerApp
 
-VERSION = "0.4.0"
+VERSION = "0.6.0"
 
 
 def main() -> None:
