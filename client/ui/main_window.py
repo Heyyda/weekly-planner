@@ -54,6 +54,21 @@ class MainWindow:
     FADE_DURATION_MS = 150
     FADE_STEPS = 8
 
+    # Quick 260422-tni: Win32 hit-test codes для WM_NCLBUTTONDOWN.
+    # Делегируем edge-resize Windows-у (custom <B1-Motion> на overrideredirect
+    # окне ненадёжен: event-coords drift, motion events теряются).
+    HT_MAP = {
+        "n":  12,  # HT_TOP
+        "s":  15,  # HT_BOTTOM
+        "w":  10,  # HT_LEFT
+        "e":  11,  # HT_RIGHT
+        "nw": 13,  # HT_TOPLEFT
+        "ne": 14,  # HT_TOPRIGHT
+        "sw": 16,  # HT_BOTTOMLEFT
+        "se": 17,  # HT_BOTTOMRIGHT
+    }
+    _WM_NCLBUTTONDOWN = 0x00A1
+
     def __init__(
         self,
         root: ctk.CTk,
@@ -111,14 +126,8 @@ class MainWindow:
         self._header_close_btn: Optional[ctk.CTkLabel] = None
         self._drag_offset_x = 0
         self._drag_offset_y = 0
-        self._resize_start_w = 0
-        self._resize_start_h = 0
-        self._resize_start_x = 0
-        self._resize_start_y = 0
-        # Quick 260422-tah: resize по всему периметру вместо одного grip-а.
-        self._resize_edge: Optional[str] = None
-        self._resize_start_win_x = 0
-        self._resize_start_win_y = 0
+        # Quick 260422-tni: resize делегирован Win32 через WM_NCLBUTTONDOWN —
+        # локальные _resize_* поля больше не нужны (Windows сам ведёт drag-цикл).
         self._edge_zones: list = []  # список CTkFrame зон, чтобы lift() / theme update
 
         self._build_ui()
@@ -473,57 +482,45 @@ class MainWindow:
                 "<ButtonPress-1>",
                 lambda e, edge=edge_name: self._on_edge_press(e, edge),
             )
-            zone.bind("<B1-Motion>", self._on_edge_drag)
-            zone.bind("<ButtonRelease-1>", self._on_edge_release)
             zone.lift()
             self._edge_zones.append(zone)
 
     def _on_edge_press(self, event, edge: str) -> None:
-        """Запомнить начальные размеры и позицию окна для последующего drag-а."""
-        self._resize_edge = edge
-        try:
-            self._resize_start_x = event.x_root
-            self._resize_start_y = event.y_root
-            self._resize_start_w = self._window.winfo_width()
-            self._resize_start_h = self._window.winfo_height()
-            self._resize_start_win_x = self._window.winfo_x()
-            self._resize_start_win_y = self._window.winfo_y()
-        except tk.TclError:
-            self._resize_edge = None
+        """Quick 260422-tni: делегировать resize Windows-у через WM_NCLBUTTONDOWN.
 
-    def _on_edge_drag(self, event) -> None:
-        """Пересчитать geometry исходя из того, какие стороны активны в edge-строке."""
-        if not self._resize_edge:
+        Custom <B1-Motion> ресайз на overrideredirect окне ненадёжен:
+        event-coords drift между edge-zones, motion events теряются, окно
+        увеличивалось только по y и не могло уменьшиться обратно.
+
+        Win32-способ: отпустить Tk-capture + отправить WM_NCLBUTTONDOWN с
+        hit-test кодом — Windows сам перехватит мышь и выполнит resize как
+        для native-рамки. minsize уважается через WM_GETMINMAXINFO (мы уже
+        вызвали `self._window.minsize(*MIN_SIZE)` в __init__).
+
+        <Configure> bind + _on_configure обновляют settings в памяти при
+        любом изменении geometry (в том числе Win32-initiated), а
+        _save_window_state вызывается в _on_close — persist работает сам.
+        """
+        ht = self.HT_MAP.get(edge)
+        if ht is None:
             return
         try:
-            dx = event.x_root - self._resize_start_x
-            dy = event.y_root - self._resize_start_y
-            new_w = self._resize_start_w
-            new_h = self._resize_start_h
-            new_x = self._resize_start_win_x
-            new_y = self._resize_start_win_y
-            if "e" in self._resize_edge:
-                new_w = max(self.MIN_SIZE[0], self._resize_start_w + dx)
-            if "w" in self._resize_edge:
-                proposed_w = max(self.MIN_SIZE[0], self._resize_start_w - dx)
-                new_x = self._resize_start_win_x + (self._resize_start_w - proposed_w)
-                new_w = proposed_w
-            if "s" in self._resize_edge:
-                new_h = max(self.MIN_SIZE[1], self._resize_start_h + dy)
-            if "n" in self._resize_edge:
-                proposed_h = max(self.MIN_SIZE[1], self._resize_start_h - dy)
-                new_y = self._resize_start_win_y + (self._resize_start_h - proposed_h)
-                new_h = proposed_h
-            self._window.geometry(f"{new_w}x{new_h}+{new_x}+{new_y}")
-        except tk.TclError:
-            pass
-
-    def _on_edge_release(self, event) -> None:
-        """Сохранить новый размер/позицию в settings.json."""
-        if self._resize_edge is None:
-            return
-        self._resize_edge = None
-        self._save_window_state()
+            user32 = ctypes.windll.user32
+            # winfo_id() → hwnd виджета; GetParent даёт настоящий hwnd окна
+            # (Tk иногда оборачивает Toplevel). Fallback на widget_hwnd если 0.
+            widget_hwnd = self._window.winfo_id()
+            parent_hwnd = user32.GetParent(widget_hwnd)
+            hwnd = parent_hwnd if parent_hwnd else widget_hwnd
+            if not hwnd:
+                return
+            # ReleaseCapture обязателен ДО SendMessageW: без него Windows
+            # не переключится в resize-mode (button-state считается занятым Tk).
+            user32.ReleaseCapture()
+            # SendMessageW возвращается сразу; resize продолжается асинхронно
+            # на уровне OS, пока пользователь не отпустит кнопку мыши.
+            user32.SendMessageW(hwnd, self._WM_NCLBUTTONDOWN, ht, 0)
+        except Exception as exc:
+            logger.debug("Win32 edge-resize failed (edge=%s): %s", edge, exc)
 
     # ---- Week navigation callbacks ----
 
