@@ -159,6 +159,8 @@ class MainWindow:
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
         self._edit_panel: Optional[InlineEditPanel] = None
+        # Quick 260422-v1a: debounced persist window geometry через _on_configure
+        self._save_window_state_after_id: Optional[str] = None
 
         # UX v2: кастомный title-bar + edge resize zones вместо native Windows frame
         self._header_frame: Optional[ctk.CTkFrame] = None
@@ -207,12 +209,18 @@ class MainWindow:
         self._fade(target=1.0, step=0)
 
     def hide(self) -> None:
-        """UX-04: fade-out 150мс, затем withdraw."""
+        """UX-04: fade-out 150мс, затем withdraw.
+
+        Quick 260422-v1a: _save_window_state вызывается ДО fade-out (пока окно
+        ещё visible, winfo_* корректны). Гарантирует персистентность размера
+        при ЛЮБОМ способе закрытия — tray menu, Alt+Z, X-кнопка.
+        """
         try:
             if self._window.winfo_viewable() == 0:
                 return
         except tk.TclError:
             return
+        self._save_window_state()
         self._fade(target=0.0, step=0, on_complete=self._safe_withdraw)
 
     def _safe_withdraw(self) -> None:
@@ -292,6 +300,13 @@ class MainWindow:
             pass
 
     def destroy(self) -> None:
+        # Quick 260422-v1a: отменить pending debounce-таймер перед уничтожением
+        if self._save_window_state_after_id is not None:
+            try:
+                self._window.after_cancel(self._save_window_state_after_id)
+            except (tk.TclError, AttributeError):
+                pass
+            self._save_window_state_after_id = None
         if self._drag_controller is not None:
             try:
                 self._drag_controller.destroy()
@@ -788,24 +803,52 @@ class MainWindow:
         try:
             w, h = int(ws[0]), int(ws[1])
             if w >= self.MIN_SIZE[0] and h >= self.MIN_SIZE[1]:
+                logger.debug("Resolved window size from settings: %dx%d", w, h)
                 return (w, h)
         except (TypeError, ValueError, IndexError):
             pass
+        logger.debug("Using DEFAULT_SIZE: %dx%d (ws=%r)", *self.DEFAULT_SIZE, ws)
         return self.DEFAULT_SIZE
 
     def _on_configure(self, event) -> None:
-        if event.widget is self._window:
-            try:
-                new_size = [self._window.winfo_width(), self._window.winfo_height()]
-                new_pos = [self._window.winfo_x(), self._window.winfo_y()]
-                if new_size != self._settings.window_size:
-                    self._settings.window_size = new_size
-                    self._settings.window_position = new_pos
-            except tk.TclError:
-                pass
+        """Обновить геометрию в RAM + debounced save на диск через 500мс.
+
+        Quick 260422-v1a: debounce гарантирует что при активном resize мы не
+        хаммеримся в settings.json каждый configure event, но финальный
+        размер точно попадает на диск. hide() также триггерит save
+        синхронно — двойная защита.
+        """
+        if event.widget is not self._window:
+            return
+        try:
+            new_size = [self._window.winfo_width(), self._window.winfo_height()]
+            new_pos = [self._window.winfo_x(), self._window.winfo_y()]
+            changed = (
+                new_size != self._settings.window_size
+                or new_pos != self._settings.window_position
+            )
+            if changed:
+                self._settings.window_size = new_size
+                self._settings.window_position = new_pos
+                if self._save_window_state_after_id is not None:
+                    try:
+                        self._window.after_cancel(self._save_window_state_after_id)
+                    except tk.TclError:
+                        pass
+                self._save_window_state_after_id = self._window.after(
+                    500, self._debounced_save_window_state
+                )
+        except tk.TclError:
+            pass
+
+    def _debounced_save_window_state(self) -> None:
+        """Callback after(500, ...) — сбросить id и сохранить на диск."""
+        self._save_window_state_after_id = None
+        self._save_window_state()
 
     def _on_close(self) -> None:
-        self._save_window_state()
+        # _save_window_state уже вызывается в hide() (Quick 260422-v1a);
+        # идемпотентный повторный вызов здесь безопасен, но не нужен.
         self.hide()
 
     def _save_window_state(self) -> None:
