@@ -6,6 +6,9 @@
 PITFALL 1: after(100) для overrideredirect
 PITFALL 3: focus-out через after(50) delay
 D-02: -toolwindow=1 hide from taskbar + edge-flip
+
+Quick 260422-v1a: redesign 360×140 + accent strip + hint footer
++ screen-clamp позиционирование (popup никогда не выходит за край экрана).
 """
 from __future__ import annotations
 
@@ -17,18 +20,19 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from shared.parse_input import parse_quick_input
-from client.ui.themes import ThemeManager
+from client.ui.themes import FONTS, ThemeManager
 
 logger = logging.getLogger(__name__)
 
 
 class QuickCapturePopup:
-    """См. 04-UI-SPEC §Quick Capture."""
+    """См. 04-UI-SPEC §Quick Capture. Quick 260422-v1a: 360×140 redesign."""
 
-    POPUP_WIDTH = 400
-    POPUP_HEIGHT = 40
+    POPUP_WIDTH = 360
+    POPUP_HEIGHT = 140
     POPUP_GAP = 8
-    EDGE_MARGIN = 80
+    ACCENT_STRIP_WIDTH = 4
+    EDGE_MARGIN = 8  # отступ от края экрана (было 80 — избыточно)
     FOCUS_CHECK_DELAY_MS = 50
     INIT_DELAY_MS = 100
     EMPTY_FLASH_MS = 300
@@ -51,30 +55,52 @@ class QuickCapturePopup:
         return self._visible and self._popup is not None
 
     def show_at_overlay(self, overlay_x: int, overlay_y: int, overlay_size: int = 73) -> None:
-        """D-02: показать popup под overlay. Toggle если уже открыт."""
+        """D-02: показать popup рядом с overlay. Toggle если уже открыт.
+
+        Quick 260422-v1a screen-clamp:
+          X: сначала справа (overlay_x + overlay_size + gap); если не влезает →
+             слева от overlay; fallback — центрировать по overlay, clamp к экрану.
+          Y: по умолчанию = overlay_y; если не влезает снизу — прижать к низу экрана.
+        """
         if self._visible:
             self.hide()
             return
 
         try:
-            screen_h = self._root.winfo_screenheight()
+            sw = self._root.winfo_screenwidth()
+            sh = self._root.winfo_screenheight()
         except tk.TclError:
-            screen_h = 1080
+            sw, sh = 1920, 1080
 
-        needed_below = overlay_y + overlay_size + self.POPUP_GAP + self.POPUP_HEIGHT + self.EDGE_MARGIN
-        if needed_below > screen_h:
-            popup_y = overlay_y - self.POPUP_HEIGHT - self.POPUP_GAP
-        else:
-            popup_y = overlay_y + overlay_size + self.POPUP_GAP
+        # X positioning: prefer right → left → center+clamp
+        x = overlay_x + overlay_size + self.POPUP_GAP
+        if x + self.POPUP_WIDTH + self.EDGE_MARGIN > sw:
+            x = overlay_x - self.POPUP_WIDTH - self.POPUP_GAP
+        if x < self.EDGE_MARGIN:
+            x = overlay_x + overlay_size // 2 - self.POPUP_WIDTH // 2
+            x = max(self.EDGE_MARGIN, min(x, sw - self.POPUP_WIDTH - self.EDGE_MARGIN))
 
-        popup_x = overlay_x + overlay_size // 2 - self.POPUP_WIDTH // 2
-        self._create_popup(popup_x, popup_y)
+        # Y positioning: align with overlay top, clamp
+        y = overlay_y
+        if y + self.POPUP_HEIGHT + self.EDGE_MARGIN > sh:
+            y = sh - self.POPUP_HEIGHT - self.EDGE_MARGIN
+        if y < self.EDGE_MARGIN:
+            y = self.EDGE_MARGIN
+
+        self._create_popup(x, y)
 
     def show_centered(self, x: int, y: int) -> None:
-        """D-30 Ctrl+Space alternate trigger."""
+        """D-30 Ctrl+Space alternate trigger. Quick 260422-v1a: clamp по обеим осям."""
         if self._visible:
             self.hide()
             return
+        try:
+            sw = self._root.winfo_screenwidth()
+            sh = self._root.winfo_screenheight()
+        except tk.TclError:
+            sw, sh = 1920, 1080
+        x = max(self.EDGE_MARGIN, min(x, sw - self.POPUP_WIDTH - self.EDGE_MARGIN))
+        y = max(self.EDGE_MARGIN, min(y, sh - self.POPUP_HEIGHT - self.EDGE_MARGIN))
         self._create_popup(x, y)
 
     def hide(self) -> None:
@@ -98,6 +124,7 @@ class QuickCapturePopup:
         self._popup.after(self.INIT_DELAY_MS, self._init_popup_style)
 
     def _init_popup_style(self) -> None:
+        """Quick 260422-v1a: redesign — accent strip + caption label + hint footer."""
         if self._popup is None:
             return
         try:
@@ -112,22 +139,52 @@ class QuickCapturePopup:
             pass
 
         accent = self._theme.get("accent_brand")
-        frame = ctk.CTkFrame(
-            self._popup, fg_color=self._theme.get("bg_secondary"), corner_radius=0,
-        )
-        frame.pack(fill="both", expand=True)
+        bg = self._theme.get("bg_secondary")
+        text_ter = self._theme.get("text_tertiary")
+        border = self._blend_hex(bg, text_ter, 0.35)
 
-        strip = ctk.CTkFrame(frame, width=3, fg_color=accent, corner_radius=0)
+        # Outer frame с border — визуально согласован с UpdateBanner/InlineEditPanel
+        outer = ctk.CTkFrame(
+            self._popup, fg_color=bg, corner_radius=10,
+            border_width=1, border_color=border,
+        )
+        outer.pack(fill="both", expand=True)
+
+        # Accent strip 4px слева (sage)
+        strip = ctk.CTkFrame(
+            outer, width=self.ACCENT_STRIP_WIDTH, fg_color=accent, corner_radius=0,
+        )
         strip.pack(side="left", fill="y")
         strip.pack_propagate(False)
 
+        # Content area
+        content = ctk.CTkFrame(outer, fg_color=bg, corner_radius=0)
+        content.pack(side="left", fill="both", expand=True, padx=12, pady=10)
+
+        # Caption label
+        ctk.CTkLabel(
+            content, text="Быстрая задача",
+            font=FONTS["caption"], text_color=text_ter, anchor="w",
+        ).pack(fill="x")
+
+        # Entry
         self._entry = ctk.CTkEntry(
-            frame,
-            placeholder_text="Новая задача на сегодня...",
-            border_width=0,
-            fg_color=self._theme.get("bg_secondary"),
+            content,
+            placeholder_text="Что нужно сделать?",
+            font=FONTS["body"],
+            border_width=1,
+            border_color=border,
+            fg_color=bg,
+            height=32,
+            corner_radius=8,
         )
-        self._entry.pack(side="left", fill="both", expand=True, padx=(4, 4), pady=2)
+        self._entry.pack(fill="x", pady=(4, 6))
+
+        # Hint footer
+        ctk.CTkLabel(
+            content, text="Enter — сохранить   ·   Esc — отмена",
+            font=FONTS["caption"], text_color=text_ter, anchor="w",
+        ).pack(fill="x")
 
         self._entry.bind("<Return>", self._on_enter)
         self._entry.bind("<Escape>", lambda e: self.hide())
@@ -141,6 +198,19 @@ class QuickCapturePopup:
         except tk.TclError:
             pass
         self._visible = True
+
+    @staticmethod
+    def _blend_hex(a: str, b: str, t: float) -> str:
+        """Линейный блендинг двух hex-цветов. t=0 → a, t=1 → b."""
+        def _parse(h: str) -> tuple[int, int, int]:
+            h = h.lstrip("#")
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        ar, ag, ab = _parse(a)
+        br, bg, bb = _parse(b)
+        r = int(ar + (br - ar) * t)
+        g = int(ag + (bg - ag) * t)
+        bl = int(ab + (bb - ab) * t)
+        return f"#{r:02X}{g:02X}{bl:02X}"
 
     def _on_enter(self, event=None) -> None:
         """D-05: save если не пусто; multi-add clear."""
@@ -169,7 +239,7 @@ class QuickCapturePopup:
             pass
 
     def _flash_empty_border(self) -> None:
-        """D-05: red border 300ms → restore."""
+        """D-05: red border 300ms → restore. Quick 260422-v1a: новый border = blend."""
         if self._entry is None or not self._entry.winfo_exists():
             return
         accent_overdue = self._theme.get("accent_overdue")
@@ -181,10 +251,10 @@ class QuickCapturePopup:
         def restore():
             if self._entry and self._entry.winfo_exists():
                 try:
-                    self._entry.configure(
-                        border_color=self._theme.get("bg_secondary"),
-                        border_width=0,
-                    )
+                    bg = self._theme.get("bg_secondary")
+                    text_ter = self._theme.get("text_tertiary")
+                    border = self._blend_hex(bg, text_ter, 0.35)
+                    self._entry.configure(border_color=border, border_width=1)
                 except tk.TclError:
                     pass
 
