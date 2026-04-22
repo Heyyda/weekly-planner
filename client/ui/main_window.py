@@ -19,6 +19,7 @@ Phase 4 (новое):
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes as wt
 import logging
 import tkinter as tk
 from datetime import date, timedelta
@@ -42,6 +43,43 @@ from client.ui.week_navigation import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---- Win32 user32 signatures (x64 safe) ----
+# Без явных argtypes/restype ctypes на x64 трактует параметры как C int (32-bit),
+# а HWND/WPARAM/LPARAM/LONG_PTR — pointer-sized (64-bit на x64). Результат:
+# Windows получает усечённые значения → ERROR_INVALID_PARAMETER (код 87).
+_user32 = ctypes.windll.user32
+
+# GetParent(HWND) -> HWND
+_user32.GetParent.argtypes = [wt.HWND]
+_user32.GetParent.restype = wt.HWND
+
+# GetWindowLongPtrW / SetWindowLongPtrW — x64 ptr-размер (ctypes.c_ssize_t = LONG_PTR).
+# На 32-bit Python эти функции отсутствуют — fallback на LongW (LONG = c_long).
+if hasattr(_user32, "GetWindowLongPtrW"):
+    _user32.GetWindowLongPtrW.argtypes = [wt.HWND, ctypes.c_int]
+    _user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+    _user32.SetWindowLongPtrW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_ssize_t]
+    _user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+    _get_window_long = _user32.GetWindowLongPtrW
+    _set_window_long = _user32.SetWindowLongPtrW
+else:
+    _user32.GetWindowLongW.argtypes = [wt.HWND, ctypes.c_int]
+    _user32.GetWindowLongW.restype = ctypes.c_long
+    _user32.SetWindowLongW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_long]
+    _user32.SetWindowLongW.restype = ctypes.c_long
+    _get_window_long = _user32.GetWindowLongW
+    _set_window_long = _user32.SetWindowLongW
+
+# ReleaseCapture() -> BOOL
+_user32.ReleaseCapture.argtypes = []
+_user32.ReleaseCapture.restype = wt.BOOL
+
+# SendMessageW(HWND, UINT, WPARAM, LPARAM) -> LRESULT
+# WPARAM/LPARAM/LRESULT — pointer-sized, ctypes.c_ssize_t покрывает signed LONG_PTR.
+_user32.SendMessageW.argtypes = [wt.HWND, wt.UINT, ctypes.c_ssize_t, ctypes.c_ssize_t]
+_user32.SendMessageW.restype = ctypes.c_ssize_t
 
 
 class MainWindow:
@@ -351,15 +389,15 @@ class MainWindow:
 
         # WS_EX_TOOLWINDOW — скрыть окно из taskbar и Alt+Tab (overlay+tray остаются видны)
         try:
-            hwnd = ctypes.windll.user32.GetParent(self._window.winfo_id())
+            hwnd = _user32.GetParent(self._window.winfo_id())
             if not hwnd:
                 return
             GWL_EXSTYLE = -20
             WS_EX_APPWINDOW = 0x00040000
             WS_EX_TOOLWINDOW = 0x00000080
-            current = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            current = _get_window_long(hwnd, GWL_EXSTYLE)
             new = (current & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
-            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new)
+            _set_window_long(hwnd, GWL_EXSTYLE, new)
             # Re-apply style: withdraw/deiconify цикл — только если окно видимо
             # (на первом старте окно withdraw'нуто, значит flash не случится).
             if self._window.winfo_viewable():
@@ -505,20 +543,19 @@ class MainWindow:
         if ht is None:
             return
         try:
-            user32 = ctypes.windll.user32
             # winfo_id() → hwnd виджета; GetParent даёт настоящий hwnd окна
             # (Tk иногда оборачивает Toplevel). Fallback на widget_hwnd если 0.
             widget_hwnd = self._window.winfo_id()
-            parent_hwnd = user32.GetParent(widget_hwnd)
+            parent_hwnd = _user32.GetParent(widget_hwnd)
             hwnd = parent_hwnd if parent_hwnd else widget_hwnd
             if not hwnd:
                 return
             # ReleaseCapture обязателен ДО SendMessageW: без него Windows
             # не переключится в resize-mode (button-state считается занятым Tk).
-            user32.ReleaseCapture()
+            _user32.ReleaseCapture()
             # SendMessageW возвращается сразу; resize продолжается асинхронно
             # на уровне OS, пока пользователь не отпустит кнопку мыши.
-            user32.SendMessageW(hwnd, self._WM_NCLBUTTONDOWN, ht, 0)
+            _user32.SendMessageW(hwnd, self._WM_NCLBUTTONDOWN, ht, 0)
         except Exception as exc:
             logger.debug("Win32 edge-resize failed (edge=%s): %s", edge, exc)
 
