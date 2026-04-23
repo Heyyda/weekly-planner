@@ -449,6 +449,21 @@ def test_fade_constants_present():
     assert MainWindow.FADE_STEPS > 0
 
 
+def test_toolwindow_attr_applied(mw_deps):
+    """Quick 260423-o8z: окно скрыто из taskbar/Alt+Tab через -toolwindow attr."""
+    import tkinter as tk_
+    mw = _make(mw_deps)
+    mw_deps["root"].update()
+    try:
+        val = mw._window.wm_attributes("-toolwindow")
+        # Windows возвращает 1 (int) или '1' (str); 0/'0' = не применено.
+        assert val in (1, "1", True, "True"), f"-toolwindow should be applied, got {val!r}"
+    except tk_.TclError:
+        pytest.skip("toolwindow attr not supported on this platform")
+    finally:
+        mw.destroy()
+
+
 def test_ctrl_space_binding_present_when_trigger_set(mw_phase4_deps):
     trigger = MagicMock()
     mw_phase4_deps["settings"] = UISettings()

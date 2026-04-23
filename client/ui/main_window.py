@@ -131,6 +131,17 @@ class MainWindow:
         self._window.minsize(*self.MIN_SIZE)
         self._window.resizable(True, True)
 
+        # Quick 260423-o8z: скрыть окно из taskbar/Alt+Tab через native Tk
+        # toolwindow attr. Работает на Windows (ToolWindow с тонким title bar
+        # + hidden в taskbar). Отличие от quick-260422-tx2: НЕТ overrideredirect,
+        # рамка native — нет DWM clash. Fade через attributes('-alpha', ...)
+        # работает одинаково на toolwindow окне.
+        try:
+            self._window.wm_attributes("-toolwindow", True)
+            logger.debug("toolwindow attr applied — окно скрыто из taskbar")
+        except tk.TclError as exc:
+            logger.debug("toolwindow attr failed: %s", exc)
+
         w, h = self._resolve_initial_size()
         self._window.geometry(f"{w}x{h}")
         pos = self._settings.window_position
