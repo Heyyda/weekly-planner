@@ -159,9 +159,11 @@ class MainWindow:
         self._undo_toast: Optional[UndoToastManager] = None
         self._week_nav: Optional[WeekNavigation] = None
         self._edit_panel: Optional[InlineEditPanel] = None
-        # Quick 260422-vvn: cross-week DnD pills (sage), pack'ятся на время drag.
-        self._prev_week_zone: Optional[ctk.CTkFrame] = None
-        self._next_week_zone: Optional[ctk.CTkFrame] = None
+        # Quick 260423-o8z: sage vertical edge-indicators для cross-week drag.
+        # place()'ятся через _on_edge_zone_changed callback от DragController,
+        # скрыты по умолчанию. Заменили pill-кнопки 260422-vvn.
+        self._left_edge_indicator: Optional[ctk.CTkFrame] = None
+        self._right_edge_indicator: Optional[ctk.CTkFrame] = None
         # Quick 260422-v1a: debounced persist window geometry через _on_configure
         self._save_window_state_after_id: Optional[str] = None
 
@@ -379,38 +381,25 @@ class MainWindow:
         self._scroll = ctk.CTkScrollableFrame(self._root_frame)
         self._scroll.pack(fill="both", expand=True, padx=8, pady=4)
 
-        # Quick 260422-vvn: Cross-week DnD pills (sage accent).
-        # Скрыты по умолчанию — pack/unpack управляется DragController
-        # через _show/_hide_week_jump_zones() на старте/конце drag-цикла.
-        # Parent = _root_frame (а не _scroll), чтобы pill'ы всегда были видны
-        # поверх scroll-контента, без необходимости подстраиваться под scroll-позицию.
+        # Quick 260423-o8z: sage vertical edge-indicators (4px полоски).
+        # Заменили pill-кнопки ◀/▶ из 260422-vvn. Показываются через
+        # _on_edge_zone_changed callback от DragController — только во
+        # время drag, когда курсор <60px от левого/правого края окна.
+        # Parent = _root_frame чтобы перекрывали scroll-контент.
         sage = self._theme.get("accent_brand")
-        self._prev_week_zone = ctk.CTkFrame(
+        self._left_edge_indicator = ctk.CTkFrame(
             self._root_frame,
             fg_color=sage,
-            corner_radius=14,
-            height=36,
+            corner_radius=0,
+            width=4,
         )
-        ctk.CTkLabel(
-            self._prev_week_zone,
-            text="◀  Предыдущая неделя",
-            text_color="#FFFFFF",
-            font=FONTS["body_m"],
-        ).pack(expand=True, fill="both")
-
-        self._next_week_zone = ctk.CTkFrame(
+        self._right_edge_indicator = ctk.CTkFrame(
             self._root_frame,
             fg_color=sage,
-            corner_radius=14,
-            height=36,
+            corner_radius=0,
+            width=4,
         )
-        ctk.CTkLabel(
-            self._next_week_zone,
-            text="Следующая неделя  ▶",
-            text_color="#FFFFFF",
-            font=FONTS["body_m"],
-        ).pack(expand=True, fill="both")
-        # Намеренно НЕ pack'им — будут pack'иться только во время drag.
+        # Намеренно НЕ place'им — видны только во время edge-drag.
 
         self._undo_toast = UndoToastManager(
             self._root_frame, self._root, self._theme,
@@ -420,6 +409,7 @@ class MainWindow:
             self._root, self._theme,
             on_task_moved=self._on_task_moved,
             on_week_jump=self._on_week_jump,
+            on_edge_zone_changed=self._on_edge_zone_changed,
         )
 
         self._rebuild_day_sections()
@@ -657,22 +647,8 @@ class MainWindow:
                 zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                 self._drag_controller.register_drop_zone(zone)
 
-        # Quick 260422-vvn: регистрация cross-week pills (prev + next).
-        # day_date=date.min/max — placeholder, не используется в hit-test
-        # (DropZone.contains() полагается на frame.winfo_rootx/y).
-        if self._drag_controller is not None:
-            if self._prev_week_zone is not None:
-                self._drag_controller.register_drop_zone(DropZone(
-                    day_date=date.min,
-                    frame=self._prev_week_zone,
-                    is_prev_week=True,
-                ))
-            if self._next_week_zone is not None:
-                self._drag_controller.register_drop_zone(DropZone(
-                    day_date=date.max,
-                    frame=self._next_week_zone,
-                    is_next_week=True,
-                ))
+        # Quick 260423-o8z: pill-зоны (prev/next week) удалены. Cross-week DnD
+        # триггерится через edge-drag (EDGE_JUMP_THRESHOLD_PX=60) в DragController.
 
         if self._week_nav.is_current_archive():
             self._on_archive_changed(True)
@@ -714,21 +690,7 @@ class MainWindow:
                 for d, ds in self._day_sections.items():
                     zone = DropZone(day_date=d, frame=ds.get_drop_frame())
                     self._drag_controller.register_drop_zone(zone)
-                # Quick 260422-vvn: перерегистрация cross-week pills после
-                # clear_drop_zones — иначе после переключения недели prev/next
-                # pills перестают работать.
-                if self._prev_week_zone is not None:
-                    self._drag_controller.register_drop_zone(DropZone(
-                        day_date=date.min,
-                        frame=self._prev_week_zone,
-                        is_prev_week=True,
-                    ))
-                if self._next_week_zone is not None:
-                    self._drag_controller.register_drop_zone(DropZone(
-                        day_date=date.max,
-                        frame=self._next_week_zone,
-                        is_next_week=True,
-                    ))
+                # Quick 260423-o8z: cross-week pill-зоны удалены, edge-drag заменил.
             except Exception as exc:
                 logger.debug("_update_week drop zone refresh failed: %s", exc)
 
@@ -865,6 +827,42 @@ class MainWindow:
         self._storage.update_task(task_id, day=new_day.isoformat())
         self._refresh_tasks()
 
+    def _on_edge_zone_changed(self, direction: Optional[int]) -> None:
+        """Quick 260423-o8z: показать/скрыть sage edge-indicator полоску.
+
+        Callback от DragController._on_motion при пересечении курсором
+        EDGE_JUMP_THRESHOLD_PX=60 от левого/правого края окна.
+
+        direction=-1 → показать левую полоску, скрыть правую
+        direction=+1 → показать правую, скрыть левую
+        direction=None → скрыть обе (курсор вернулся в центр)
+        """
+        try:
+            # CustomTkinter: width задан в конструкторе, в place() передавать нельзя.
+            if direction == -1:
+                if self._left_edge_indicator is not None:
+                    self._left_edge_indicator.place(
+                        relx=0.0, rely=0.0, relheight=1.0,
+                    )
+                    self._left_edge_indicator.lift()
+                if self._right_edge_indicator is not None:
+                    self._right_edge_indicator.place_forget()
+            elif direction == 1:
+                if self._right_edge_indicator is not None:
+                    self._right_edge_indicator.place(
+                        relx=1.0, rely=0.0, relheight=1.0, anchor="ne",
+                    )
+                    self._right_edge_indicator.lift()
+                if self._left_edge_indicator is not None:
+                    self._left_edge_indicator.place_forget()
+            else:
+                if self._left_edge_indicator is not None:
+                    self._left_edge_indicator.place_forget()
+                if self._right_edge_indicator is not None:
+                    self._right_edge_indicator.place_forget()
+        except tk.TclError as exc:
+            logger.debug("_on_edge_zone_changed: %s", exc)
+
     def _on_week_jump(self, direction: int, task_id: str) -> None:
         """Quick 260422-vvn: cross-week DnD — перенести задачу на ±7 дней
         и переключить UI на ту неделю.
@@ -970,6 +968,7 @@ class MainWindow:
         bg_sec = palette.get("bg_secondary", "#EDE6D9")
         text_sec = palette.get("text_secondary", "#6B5E4E")
         text_ter = palette.get("text_tertiary", "#9A8F7D")
+        sage = palette.get("accent_brand", "#7A9B6B")
         try:
             self._window.configure(fg_color=bg)
             if hasattr(self, "_root_frame"):
@@ -981,5 +980,16 @@ class MainWindow:
                 self._header_title_lbl.configure(text_color=text_ter)
             if self._header_close_btn and self._header_close_btn.winfo_exists():
                 self._header_close_btn.configure(text_color=text_sec)
+            # Quick 260423-o8z: обновить цвет edge-indicators при смене темы
+            if self._left_edge_indicator is not None:
+                try:
+                    self._left_edge_indicator.configure(fg_color=sage)
+                except tk.TclError:
+                    pass
+            if self._right_edge_indicator is not None:
+                try:
+                    self._right_edge_indicator.configure(fg_color=sage)
+                except tk.TclError:
+                    pass
         except tk.TclError:
             pass

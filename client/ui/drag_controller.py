@@ -114,6 +114,9 @@ class DragController:
     """Cross-day DnD controller."""
 
     DRAG_THRESHOLD_PX = 5
+    # Quick 260423-o8z: edge-drag cross-week navigation — расстояние в px от
+    # края главного окна, внутри которого drag триггерит jump на ±7 дней.
+    EDGE_JUMP_THRESHOLD_PX = 60
 
     def __init__(
         self,
@@ -121,11 +124,15 @@ class DragController:
         theme_manager,
         on_task_moved: Callable[[str, date], None],
         on_week_jump: Optional[Callable[[int, str], None]] = None,
+        on_edge_zone_changed: Optional[Callable[[Optional[int]], None]] = None,
     ) -> None:
         self._root = root
         self._theme = theme_manager
         self._on_task_moved = on_task_moved
         self._on_week_jump = on_week_jump
+        # Quick 260423-o8z: callback для main_window — показать/скрыть
+        # sage edge-indicator на _left_edge_indicator / _right_edge_indicator.
+        self._on_edge_zone_changed = on_edge_zone_changed
 
         self._drop_zones: list[DropZone] = []
 
@@ -139,6 +146,8 @@ class DragController:
         self._drag_offset_x: int = 0
         self._drag_offset_y: int = 0
         self._hovered_zone: Optional[DropZone] = None
+        # Quick 260423-o8z: None / -1 (prev-week) / +1 (next-week).
+        self._edge_jump_direction: Optional[int] = None
 
         colors = {
             "bg_secondary": self._theme.get("bg_secondary"),
@@ -221,31 +230,104 @@ class DragController:
         ghost_x = event.x_root - self._drag_offset_x
         ghost_y = event.y_root - self._drag_offset_y
         self._ghost.move(ghost_x, ghost_y)
-        self._update_zone_highlights(event.x_root, event.y_root)
+
+        # Quick 260423-o8z: edge-drag detection относительно main window bounds.
+        # Приоритет над day-zone highlights: если курсор у края → скрыть подсветку
+        # дней, показать sage edge-indicator через on_edge_zone_changed callback.
+        edge_direction: Optional[int] = None
+        try:
+            main_win = self._root  # CTk root — главное окно приложения
+            win_x = main_win.winfo_rootx()
+            win_w = main_win.winfo_width()
+            distance_left = event.x_root - win_x
+            distance_right = (win_x + win_w) - event.x_root
+            if distance_left < self.EDGE_JUMP_THRESHOLD_PX:
+                edge_direction = -1
+            elif distance_right < self.EDGE_JUMP_THRESHOLD_PX:
+                edge_direction = +1
+        except (tk.TclError, AttributeError):
+            edge_direction = None
+
+        if edge_direction != self._edge_jump_direction:
+            self._edge_jump_direction = edge_direction
+            # Обновить ghost label внутри controller
+            self._update_ghost_for_edge(edge_direction)
+            # Нотифицировать main_window (показать/скрыть sage indicator)
+            if self._on_edge_zone_changed is not None:
+                try:
+                    self._on_edge_zone_changed(edge_direction)
+                except Exception as exc:
+                    logger.error("on_edge_zone_changed failed: %s", exc)
+
+        # День-зоны подсвечиваем ТОЛЬКО если edge не активен — чтобы не мигало.
+        if self._edge_jump_direction is None:
+            self._update_zone_highlights(event.x_root, event.y_root)
+        else:
+            # Сбросить подсветку дней (visual priority: edge mode)
+            if self._hovered_zone is not None:
+                self._set_zone_highlight(self._hovered_zone, "normal")
+                self._hovered_zone = None
+
+    def _update_ghost_for_edge(self, direction: Optional[int]) -> None:
+        """Quick 260423-o8z: перекрасить ghost label для edge-jump режима.
+
+        direction=-1 → "← Пред. неделя" + sage fg_color
+        direction=+1 → "След. неделя →" + sage fg_color
+        direction=None → восстановить original task text + bg_secondary
+        """
+        try:
+            sage = self._theme.get("accent_brand")
+            bg_sec = self._theme.get("bg_secondary")
+            text_primary = self._theme.get("text_primary")
+            if direction == -1:
+                self._ghost._label.configure(
+                    text="← Пред. неделя",
+                    text_color="#FFFFFF",
+                    fg_color=sage,
+                )
+            elif direction == +1:
+                self._ghost._label.configure(
+                    text="След. неделя →",
+                    text_color="#FFFFFF",
+                    fg_color=sage,
+                )
+            else:
+                self._ghost._label.configure(
+                    text=self._source_task_text,
+                    text_color=text_primary,
+                    fg_color=bg_sec,
+                )
+        except Exception as exc:
+            logger.debug("_update_ghost_for_edge failed: %s", exc)
 
     def _on_release(self, event) -> None:
         if not self._dragging:
             self._reset_state()
             return
 
-        target = self._find_drop_zone(event.x_root, event.y_root)
-        if target is None or target.is_archive:
-            self._cancel_drag()
-            return
-
-        # Cross-week jump имеет приоритет над same-day drop.
-        if target.is_prev_week or target.is_next_week:
-            direction = -1 if target.is_prev_week else 1
+        # Quick 260423-o8z: edge-jump имеет приоритет над drop-zones.
+        if self._edge_jump_direction is not None:
+            direction = self._edge_jump_direction
             task_id = self._source_task_id
             self._ghost.hide()
             self._clear_all_highlights()
-            self._hide_week_jump_zones()
+            # Скрыть edge indicators через callback (direction=None)
+            if self._on_edge_zone_changed is not None:
+                try:
+                    self._on_edge_zone_changed(None)
+                except Exception as exc:
+                    logger.debug("on_edge_zone_changed(None) failed: %s", exc)
             try:
                 if task_id and self._on_week_jump:
                     self._on_week_jump(direction, task_id)
             except Exception as exc:
                 logger.error("on_week_jump failed: %s", exc)
             self._reset_state()
+            return
+
+        target = self._find_drop_zone(event.x_root, event.y_root)
+        if target is None or target.is_archive:
+            self._cancel_drag()
             return
 
         if target != self._source_zone:
@@ -264,15 +346,13 @@ class DragController:
         except (tk.TclError, AttributeError, TypeError, ValueError):
             widget_w, widget_h = 300, 40
         self._ghost.show(self._source_task_text, widget_w, widget_h, ghost_x, ghost_y)
-
-        # D-25: показать обе cross-week zones (prev + next).
-        self._show_week_jump_zones()
+        # Quick 260423-o8z: pill-frames больше не показываются на drag start —
+        # cross-week jump триггерится через edge-drag (EDGE_JUMP_THRESHOLD_PX).
 
     def _commit_drop(self, target: DropZone) -> None:
         """D-26: valid drop → callback."""
         self._ghost.hide()
         self._clear_all_highlights()
-        self._hide_week_jump_zones()
 
         task_id = self._source_task_id
         try:
@@ -286,7 +366,12 @@ class DragController:
         """D-26: invalid drop → hide, reset."""
         self._ghost.hide()
         self._clear_all_highlights()
-        self._hide_week_jump_zones()
+        # Quick 260423-o8z: скрыть edge indicator если был показан
+        if self._on_edge_zone_changed is not None:
+            try:
+                self._on_edge_zone_changed(None)
+            except Exception:
+                pass
         self._reset_state()
         logger.debug("DnD cancelled")
 
@@ -297,6 +382,8 @@ class DragController:
         self._source_widget = None
         self._source_zone = None
         self._hovered_zone = None
+        # Quick 260423-o8z: сброс edge-jump state
+        self._edge_jump_direction = None
 
     def _find_drop_zone(self, x_root: int, y_root: int) -> Optional[DropZone]:
         """Bbox hit-test — НЕ winfo-containing (CTkScrollableFrame PITFALL)."""
@@ -311,15 +398,16 @@ class DragController:
         return None
 
     def _update_zone_highlights(self, x_root: int, y_root: int) -> None:
-        """D-24: active + adjacent highlights."""
+        """D-24: active + adjacent highlights.
+
+        Quick 260423-o8z: упрощено — pill cross-week zones удалены,
+        остался только archive guard.
+        """
         hovered = self._find_drop_zone(x_root, y_root)
         if hovered == self._hovered_zone:
             return
 
-        if self._hovered_zone is not None and not (
-            self._hovered_zone.is_prev_week or self._hovered_zone.is_next_week
-        ):
-            # Cross-week pills не тронуты в active-ветке — сбрасывать sage-цвет не нужно.
+        if self._hovered_zone is not None:
             self._set_zone_highlight(self._hovered_zone, "normal")
 
         if (
@@ -327,25 +415,17 @@ class DragController:
             and not hovered.is_archive
             and hovered != self._source_zone
         ):
-            # Cross-week pills имеют собственный sage fg_color — не трогаем их подсветку.
-            if not hovered.is_prev_week and not hovered.is_next_week:
-                self._set_zone_highlight(hovered, "active")
+            self._set_zone_highlight(hovered, "active")
             for zone in self._drop_zones:
                 if (
                     zone is not hovered
                     and zone is not self._source_zone
                     and not zone.is_archive
-                    and not zone.is_prev_week
-                    and not zone.is_next_week
                 ):
                     self._set_zone_highlight(zone, "adjacent")
         else:
             for zone in self._drop_zones:
-                if (
-                    zone is not self._source_zone
-                    and not zone.is_prev_week
-                    and not zone.is_next_week
-                ):
+                if zone is not self._source_zone:
                     self._set_zone_highlight(zone, "normal")
         self._hovered_zone = hovered
 
@@ -370,42 +450,9 @@ class DragController:
             logger.debug("zone highlight: %s", exc)
 
     def _clear_all_highlights(self) -> None:
+        """Quick 260423-o8z: сбросить подсветку всех зон (pill cross-week удалены)."""
         for zone in self._drop_zones:
-            # Не сбрасываем sage fg_color cross-week pills — для них normal == скрыто.
-            if zone.is_prev_week or zone.is_next_week:
-                continue
             self._set_zone_highlight(zone, "normal")
-
-    def _show_week_jump_zones(self) -> None:
-        """Показать обе pill-зоны (prev + next) при старте drag.
-
-        Pack использует те же опции что и повторный pack в Tk — pack_forget
-        сохраняет предыдущие опции, поэтому последующий pack() без аргументов
-        восстановит предыдущий pack-контракт. Указываем опции явно чтобы
-        гарантировать корректное позиционирование на первом показе.
-        """
-        for zone in self._drop_zones:
-            if zone.is_prev_week:
-                try:
-                    zone.frame.pack(fill="x", padx=12, pady=(4, 4), side="top")
-                    zone.frame.lift()
-                except Exception:
-                    pass
-            elif zone.is_next_week:
-                try:
-                    zone.frame.pack(fill="x", padx=12, pady=(4, 4), side="bottom")
-                    zone.frame.lift()
-                except Exception:
-                    pass
-
-    def _hide_week_jump_zones(self) -> None:
-        """Скрыть обе pill-зоны после drop/cancel."""
-        for zone in self._drop_zones:
-            if zone.is_prev_week or zone.is_next_week:
-                try:
-                    zone.frame.pack_forget()
-                except Exception:
-                    pass
 
     @staticmethod
     def _blend_hex(bg: str, fg: str, alpha: float) -> str:

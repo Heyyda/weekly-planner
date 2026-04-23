@@ -192,25 +192,69 @@ def test_main_window_has_drag_controller(mw_phase4_deps):
 
 
 def test_drag_controller_has_seven_drop_zones(mw_phase4_deps):
-    """7 day-zones + 2 cross-week pills (prev/next) = 9 зон после Quick 260422-vvn."""
+    """Quick 260423-o8z: 7 day-zones (pill prev/next удалены, edge-drag заменил)."""
     mw = _make_mw_p4(mw_phase4_deps)
     zones = mw._drag_controller._drop_zones
     day_zones = [z for z in zones if not z.is_prev_week and not z.is_next_week]
     assert len(day_zones) == 7
-    assert len(zones) == 9
+    assert len(zones) == 7
     mw.destroy()
 
 
-def test_cross_week_pills_registered(mw_phase4_deps):
-    """Quick 260422-vvn: prev+next week pills зарегистрированы как DropZone."""
+def test_edge_indicators_exist_after_build(mw_phase4_deps):
+    """Quick 260423-o8z: _left_edge_indicator / _right_edge_indicator созданы,
+    но НЕ place'ятся до edge-drag."""
     mw = _make_mw_p4(mw_phase4_deps)
-    zones = mw._drag_controller._drop_zones
-    prev_zones = [z for z in zones if z.is_prev_week]
-    next_zones = [z for z in zones if z.is_next_week]
-    assert len(prev_zones) == 1
-    assert len(next_zones) == 1
-    assert mw._prev_week_zone is not None
-    assert mw._next_week_zone is not None
+    assert mw._left_edge_indicator is not None
+    assert mw._right_edge_indicator is not None
+    # По умолчанию не place'ятся — place_info возвращает пустой dict
+    assert mw._left_edge_indicator.place_info() == {}
+    assert mw._right_edge_indicator.place_info() == {}
+    mw.destroy()
+
+
+def test_on_edge_zone_changed_shows_left(mw_phase4_deps):
+    """Quick 260423-o8z: direction=-1 → левый indicator place'ится, правый скрыт."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    mw._on_edge_zone_changed(-1)
+    mw_phase4_deps["root"].update_idletasks()
+    # Левый — place'ится (place_info не пустой)
+    assert mw._left_edge_indicator.place_info() != {}
+    # Правый — скрыт (пустой или not placed)
+    assert mw._right_edge_indicator.place_info() == {}
+    mw.destroy()
+
+
+def test_on_edge_zone_changed_shows_right(mw_phase4_deps):
+    """Quick 260423-o8z: direction=+1 → правый indicator place'ится, левый скрыт."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    mw._on_edge_zone_changed(1)
+    mw_phase4_deps["root"].update_idletasks()
+    assert mw._right_edge_indicator.place_info() != {}
+    assert mw._left_edge_indicator.place_info() == {}
+    mw.destroy()
+
+
+def test_on_edge_zone_changed_none_hides_both(mw_phase4_deps):
+    """Quick 260423-o8z: direction=None → оба indicator'а скрыты."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    # Сначала показать левый
+    mw._on_edge_zone_changed(-1)
+    mw_phase4_deps["root"].update_idletasks()
+    # Затем скрыть
+    mw._on_edge_zone_changed(None)
+    mw_phase4_deps["root"].update_idletasks()
+    assert mw._left_edge_indicator.place_info() == {}
+    assert mw._right_edge_indicator.place_info() == {}
+    mw.destroy()
+
+
+def test_no_pill_zones_attrs(mw_phase4_deps):
+    """Quick 260423-o8z: _prev_week_zone / _next_week_zone больше не существуют."""
+    mw = _make_mw_p4(mw_phase4_deps)
+    # Эти атрибуты должны отсутствовать (или быть None если остались для совместимости)
+    assert not hasattr(mw, "_prev_week_zone") or mw.__dict__.get("_prev_week_zone") is None
+    assert not hasattr(mw, "_next_week_zone") or mw.__dict__.get("_next_week_zone") is None
     mw.destroy()
 
 
@@ -257,14 +301,16 @@ def test_on_week_jump_unknown_task_is_noop(mw_phase4_deps):
     mw.destroy()
 
 
-def test_week_change_re_registers_cross_week_pills(mw_phase4_deps):
-    """Quick 260422-vvn: после смены недели prev/next pills остаются registered."""
+def test_week_change_keeps_seven_day_zones(mw_phase4_deps):
+    """Quick 260423-o8z: после смены недели 7 day-зон сохраняются
+    (pill prev/next удалены — edge-drag их заменяет)."""
     mw = _make_mw_p4(mw_phase4_deps)
     mw._week_nav.next_week()
     mw_phase4_deps["root"].update_idletasks()
     zones = mw._drag_controller._drop_zones
-    assert any(z.is_prev_week for z in zones), "prev-week pill пропал после next_week()"
-    assert any(z.is_next_week for z in zones), "next-week pill пропал после next_week()"
+    assert len(zones) == 7
+    assert not any(z.is_prev_week for z in zones)
+    assert not any(z.is_next_week for z in zones)
     mw.destroy()
 
 

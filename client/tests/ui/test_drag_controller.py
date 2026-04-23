@@ -211,150 +211,235 @@ def test_blend_hex_invalid_fallback():
     assert result.startswith("#")
 
 
-# ---------- Next-week zone ----------
+# ---------- Quick 260423-o8z: edge-drag cross-week navigation ----------
 
-def test_next_week_zone_shown_on_drag_start(dc_deps):
-    dc = _make(dc_deps)
-    nw_frame = MagicMock()
-    nw_zone = DropZone(
-        day_date=date.today() + timedelta(days=7),
-        frame=nw_frame,
-        is_next_week=True,
-    )
-    dc.register_drop_zone(nw_zone)
-    src = DropZone(day_date=date.today(), frame=MagicMock())
-    dc.register_drop_zone(src)
-
-    press = dc_deps["dnd_event"](x_root=0, y_root=0, x=0, y=0)
-    dc._on_press(press, "t1", "text", src, MagicMock())
-    move = dc_deps["dnd_event"](x_root=50, y_root=50)
-    dc._on_motion(move)
-    nw_frame.pack.assert_called()
-    dc.destroy()
-
-
-# ---------- Quick 260422-vvn: cross-week DnD ----------
-
-def test_dropzone_prev_week_flag():
-    """DropZone.is_prev_week — новое поле для cross-week DnD."""
-    z = DropZone(day_date=date.today(), frame=MagicMock(), is_prev_week=True)
-    assert z.is_prev_week is True
-    assert z.is_next_week is False
+def test_edge_jump_threshold_constant():
+    """Quick 260423-o8z: EDGE_JUMP_THRESHOLD_PX константа класса."""
+    assert hasattr(DragController, "EDGE_JUMP_THRESHOLD_PX")
+    assert DragController.EDGE_JUMP_THRESHOLD_PX == 60
 
 
 def test_week_jump_callback_optional():
-    """DragController.__init__ должен принимать on_week_jump как Optional
-    (обратная совместимость — старые вызовы без этого kwarg работают).
-    """
+    """DragController.__init__ принимает on_week_jump как Optional."""
     sig = inspect.signature(DragController.__init__)
     params = sig.parameters
     assert "on_week_jump" in params
     assert params["on_week_jump"].default is None
 
 
-def test_both_cross_week_zones_shown_on_drag_start(dc_deps):
-    """_show_week_jump_zones() пакует И prev, И next pill на старте drag."""
-    dc = _make(dc_deps)
-    prev_frame = MagicMock()
-    next_frame = MagicMock()
-    dc.register_drop_zone(DropZone(
-        day_date=date.min, frame=prev_frame, is_prev_week=True,
-    ))
-    dc.register_drop_zone(DropZone(
-        day_date=date.max, frame=next_frame, is_next_week=True,
-    ))
+def test_edge_zone_changed_callback_optional():
+    """Quick 260423-o8z: on_edge_zone_changed — Optional Callable."""
+    sig = inspect.signature(DragController.__init__)
+    params = sig.parameters
+    assert "on_edge_zone_changed" in params
+    assert params["on_edge_zone_changed"].default is None
+
+
+def _make_root_mock_with_bounds(root_mock, x=100, w=500):
+    """Подменить winfo_rootx / winfo_width на root (для edge-detection)."""
+    root_mock.winfo_rootx = MagicMock(return_value=x)
+    root_mock.winfo_width = MagicMock(return_value=w)
+    return root_mock
+
+
+def test_edge_drag_motion_fires_callback_left(dc_deps):
+    """_on_motion у левого края (<60px) → on_edge_zone_changed(-1)."""
+    on_edge = MagicMock()
+    # Подменим root на MagicMock с заданными bounds (winfo_rootx=100, width=500).
+    # root=100..600, порог 60 → левый край 100..160.
+    fake_root = MagicMock()
+    fake_root.winfo_rootx.return_value = 100
+    fake_root.winfo_width.return_value = 500
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=MagicMock(),
+        on_edge_zone_changed=on_edge,
+    )
+    dc._root = fake_root  # override для edge-detection
     src = DropZone(day_date=date.today(), frame=MagicMock())
     dc.register_drop_zone(src)
-
-    press = dc_deps["dnd_event"](x_root=0, y_root=0, x=0, y=0)
+    press = dc_deps["dnd_event"](x_root=400, y_root=400, x=0, y=0)
     dc._on_press(press, "t1", "text", src, MagicMock())
-    move = dc_deps["dnd_event"](x_root=50, y_root=50)
+    # Motion к левому краю: x_root=120 (distance_left=20<60)
+    move = dc_deps["dnd_event"](x_root=120, y_root=400)
     dc._on_motion(move)
-
-    prev_frame.pack.assert_called()
-    next_frame.pack.assert_called()
+    on_edge.assert_called_with(-1)
+    assert dc._edge_jump_direction == -1
     dc.destroy()
 
 
-def test_drop_on_prev_week_pill_triggers_callback(dc_deps):
-    """Drop на prev-week pill → on_week_jump(-1, task_id), НЕ on_task_moved."""
+def test_edge_drag_motion_fires_callback_right(dc_deps):
+    """_on_motion у правого края → on_edge_zone_changed(+1)."""
+    on_edge = MagicMock()
+    fake_root = MagicMock()
+    fake_root.winfo_rootx.return_value = 100
+    fake_root.winfo_width.return_value = 500
+    # Правый край: 100+500 = 600; x_root=580 → distance_right=20<60.
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=MagicMock(),
+        on_edge_zone_changed=on_edge,
+    )
+    dc._root = fake_root
+    src = DropZone(day_date=date.today(), frame=MagicMock())
+    dc.register_drop_zone(src)
+    press = dc_deps["dnd_event"](x_root=400, y_root=400, x=0, y=0)
+    dc._on_press(press, "t1", "text", src, MagicMock())
+    move = dc_deps["dnd_event"](x_root=580, y_root=400)
+    dc._on_motion(move)
+    on_edge.assert_called_with(1)
+    assert dc._edge_jump_direction == 1
+    dc.destroy()
+
+
+def test_edge_drag_motion_clears_callback_when_away(dc_deps):
+    """Сначала к левому краю (direction=-1), затем в центр (direction=None)."""
+    on_edge = MagicMock()
+    fake_root = MagicMock()
+    fake_root.winfo_rootx.return_value = 100
+    fake_root.winfo_width.return_value = 500
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=MagicMock(),
+        on_edge_zone_changed=on_edge,
+    )
+    dc._root = fake_root
+    src = DropZone(day_date=date.today(), frame=MagicMock())
+    dc.register_drop_zone(src)
+    press = dc_deps["dnd_event"](x_root=400, y_root=400, x=0, y=0)
+    dc._on_press(press, "t1", "text", src, MagicMock())
+    # В лево: -1
+    dc._on_motion(dc_deps["dnd_event"](x_root=120, y_root=400))
+    assert dc._edge_jump_direction == -1
+    # В центр: None
+    dc._on_motion(dc_deps["dnd_event"](x_root=350, y_root=400))
+    assert dc._edge_jump_direction is None
+    # Последний вызов callback должен быть с None
+    on_edge.assert_called_with(None)
+    dc.destroy()
+
+
+def test_edge_drag_left_release_triggers_week_jump(dc_deps):
+    """_on_release с _edge_jump_direction=-1 → on_week_jump(-1, task_id)."""
     on_jump = MagicMock()
+    on_edge = MagicMock()
     dc = DragController(
         dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
         on_week_jump=on_jump,
+        on_edge_zone_changed=on_edge,
     )
-    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
-    prev_zone = DropZone(
-        day_date=date.min,
-        frame=_make_frame_mock(0, 100, 300, 40),
-        is_prev_week=True,
-    )
-    dc.register_drop_zone(src)
-    dc.register_drop_zone(prev_zone)
-    dc._dragging = True
-    dc._source_zone = src
-    dc._source_task_id = "task-X"
-    dc._source_widget = MagicMock()
-
-    rel = dc_deps["dnd_event"](x_root=150, y_root=120)
-    dc._on_release(rel)
-
-    on_jump.assert_called_once_with(-1, "task-X")
-    dc_deps["on_moved"].assert_not_called()
-    dc.destroy()
-
-
-def test_drop_on_next_week_pill_triggers_callback(dc_deps):
-    """Drop на next-week pill → on_week_jump(+1, task_id)."""
-    on_jump = MagicMock()
-    dc = DragController(
-        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
-        on_week_jump=on_jump,
-    )
-    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
-    next_zone = DropZone(
-        day_date=date.max,
-        frame=_make_frame_mock(0, 100, 300, 40),
-        is_next_week=True,
-    )
-    dc.register_drop_zone(src)
-    dc.register_drop_zone(next_zone)
-    dc._dragging = True
-    dc._source_zone = src
-    dc._source_task_id = "task-Y"
-    dc._source_widget = MagicMock()
-
-    rel = dc_deps["dnd_event"](x_root=150, y_root=120)
-    dc._on_release(rel)
-
-    on_jump.assert_called_once_with(1, "task-Y")
-    dc_deps["on_moved"].assert_not_called()
-    dc.destroy()
-
-
-def test_cross_week_zones_hidden_on_cancel(dc_deps):
-    """Cancel-drop (drop в пустоту) вызывает pack_forget на pills."""
-    dc = _make(dc_deps)
-    prev_frame = MagicMock()
-    next_frame = MagicMock()
-    dc.register_drop_zone(DropZone(
-        day_date=date.min, frame=prev_frame, is_prev_week=True,
-    ))
-    dc.register_drop_zone(DropZone(
-        day_date=date.max, frame=next_frame, is_next_week=True,
-    ))
     src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
     dc.register_drop_zone(src)
     dc._dragging = True
     dc._source_zone = src
-    dc._source_task_id = "task-cancel"
+    dc._source_task_id = "task-L"
     dc._source_widget = MagicMock()
+    dc._edge_jump_direction = -1  # задаём как будто motion уже установил
 
     rel = dc_deps["dnd_event"](x_root=9999, y_root=9999)
     dc._on_release(rel)
 
-    prev_frame.pack_forget.assert_called()
-    next_frame.pack_forget.assert_called()
+    on_jump.assert_called_once_with(-1, "task-L")
+    dc_deps["on_moved"].assert_not_called()
+    # edge indicator должен быть сброшен через callback(None)
+    on_edge.assert_called_with(None)
+    dc.destroy()
+
+
+def test_edge_drag_right_release_triggers_week_jump(dc_deps):
+    """_on_release с _edge_jump_direction=+1 → on_week_jump(+1, task_id)."""
+    on_jump = MagicMock()
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=on_jump,
+        on_edge_zone_changed=MagicMock(),
+    )
+    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
+    dc.register_drop_zone(src)
+    dc._dragging = True
+    dc._source_zone = src
+    dc._source_task_id = "task-R"
+    dc._source_widget = MagicMock()
+    dc._edge_jump_direction = 1
+
+    rel = dc_deps["dnd_event"](x_root=9999, y_root=9999)
+    dc._on_release(rel)
+
+    on_jump.assert_called_once_with(1, "task-R")
+    dc.destroy()
+
+
+def test_edge_active_skips_day_zone_highlights(dc_deps):
+    """Когда edge_direction активен, день-зоны не подсвечиваются (visual priority)."""
+    fake_root = MagicMock()
+    fake_root.winfo_rootx.return_value = 100
+    fake_root.winfo_width.return_value = 500
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=MagicMock(),
+        on_edge_zone_changed=MagicMock(),
+    )
+    dc._root = fake_root
+    src = DropZone(day_date=date.today(), frame=_make_frame_mock(0, 0))
+    tgt = DropZone(day_date=date(2026, 4, 15), frame=_make_frame_mock(110, 200, 100, 100))
+    dc.register_drop_zone(src)
+    dc.register_drop_zone(tgt)
+    press = dc_deps["dnd_event"](x_root=400, y_root=400, x=0, y=0)
+    dc._on_press(press, "t1", "text", src, MagicMock())
+    # Motion на левом крае — _update_zone_highlights НЕ должна вызваться
+    with patch.object(dc, "_update_zone_highlights") as mock_update:
+        dc._on_motion(dc_deps["dnd_event"](x_root=120, y_root=210))
+        mock_update.assert_not_called()
+    dc.destroy()
+
+
+def test_ghost_text_swaps_on_edge_direction(dc_deps):
+    """При edge_direction=-1 ghost label показывает '← Пред. неделя'."""
+    fake_root = MagicMock()
+    fake_root.winfo_rootx.return_value = 100
+    fake_root.winfo_width.return_value = 500
+    dc = DragController(
+        dc_deps["root"], dc_deps["theme"], dc_deps["on_moved"],
+        on_week_jump=MagicMock(),
+        on_edge_zone_changed=MagicMock(),
+    )
+    dc._root = fake_root
+    src = DropZone(day_date=date.today(), frame=MagicMock())
+    dc.register_drop_zone(src)
+    press = dc_deps["dnd_event"](x_root=400, y_root=400, x=0, y=0)
+    dc._on_press(press, "t1", "оригинальный текст", src, MagicMock())
+    # Mock ghost _label.configure
+    dc._ghost._label.configure = MagicMock()
+    dc._on_motion(dc_deps["dnd_event"](x_root=120, y_root=400))
+    # Должен быть вызов с text="← Пред. неделя"
+    calls = dc._ghost._label.configure.call_args_list
+    assert any("Пред. неделя" in str(c) for c in calls), f"ghost label не переключён на 'Пред. неделя': {calls}"
+    dc.destroy()
+
+
+def test_edge_direction_resets_on_reset_state(dc_deps):
+    """_reset_state сбрасывает _edge_jump_direction в None."""
+    dc = _make(dc_deps)
+    dc._edge_jump_direction = -1
+    dc._reset_state()
+    assert dc._edge_jump_direction is None
+    dc.destroy()
+
+
+def test_no_pill_frames_pack_during_drag(dc_deps):
+    """Quick 260423-o8z: pill-frames НЕ pack'ятся при drag (pills removed)."""
+    # DragController больше не вызывает _show_week_jump_zones → frames не pack'ятся.
+    dc = _make(dc_deps)
+    prev_frame = MagicMock()
+    next_frame = MagicMock()
+    src = DropZone(day_date=date.today(), frame=MagicMock())
+    dc.register_drop_zone(src)
+    press = dc_deps["dnd_event"](x_root=0, y_root=0, x=0, y=0)
+    dc._on_press(press, "t1", "text", src, MagicMock())
+    dc._on_motion(dc_deps["dnd_event"](x_root=50, y_root=50))
+    # pill frames остаются нетронутыми
+    prev_frame.pack.assert_not_called()
+    next_frame.pack.assert_not_called()
     dc.destroy()
 
 
