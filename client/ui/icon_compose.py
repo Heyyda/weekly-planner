@@ -49,8 +49,18 @@ def render_overlay_image(
     # Supersampling: render at 4x then downscale with LANCZOS for smoother edges (v0.6.1)
     if size >= 24:
         hi = _render_overlay_image_raw(size * 4, state, task_count, overdue_count, pulse_t)
-        return hi.resize((size, size), Image.LANCZOS)
-    return _render_overlay_image_raw(size, state, task_count, overdue_count, pulse_t)
+        img = hi.resize((size, size), Image.LANCZOS)
+    else:
+        img = _render_overlay_image_raw(size, state, task_count, overdue_count, pulse_t)
+
+    # Quick 260423-p0m: alpha threshold — устраняет чёрные полоски по краям на
+    # -transparentcolor canvas. Anti-aliased edges после LANCZOS дают полупрозрачные
+    # чёрные пиксели (RGB≈0, alpha~128), которые Win32 color-key transparency не
+    # считает прозрачными. Threshold гарантирует: каждый пиксель либо 100% opaque,
+    # либо 100% transparent — никаких полутонов.
+    r, g, b, a = img.split()
+    a = a.point(lambda x: 255 if x > 127 else 0)
+    return Image.merge("RGBA", (r, g, b, a))
 
 
 def _render_overlay_image_raw(
