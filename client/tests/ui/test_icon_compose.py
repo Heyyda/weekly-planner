@@ -103,3 +103,34 @@ def test_tray_size_16_solid_fill():
     """Test 12: size=16 возвращает 16x16 без crash."""
     img = render_overlay_image(16, "default")
     assert img.size == (16, 16)
+
+
+# ---------- Quick 260423-o8z: render quality ----------
+
+def test_render_4x_ss_smooth_corners():
+    """Quick 260423-o8z: 4x supersampling + увеличенный CORNER_RADIUS_FRAC=16/56
+    → все 4 угла полностью прозрачны (Pillow RGBA rounded-mask клипает).
+
+    Проверяет что после удаления DwmSetWindowAttribute rounded-mask
+    остаётся единственным источником скруглённости → никаких чёрных
+    полосок по углам на реальном overlay-canvas.
+    """
+    img = render_overlay_image(size=56, state="default", task_count=3)
+    assert img.getpixel((0, 0))[3] == 0
+    assert img.getpixel((55, 0))[3] == 0
+    assert img.getpixel((0, 55))[3] == 0
+    assert img.getpixel((55, 55))[3] == 0
+
+
+def test_render_corner_radius_frac_constant():
+    """Quick 260423-o8z: CORNER_RADIUS_FRAC увеличен до 16/56."""
+    from client.ui.icon_compose import CORNER_RADIUS_FRAC
+    assert CORNER_RADIUS_FRAC == 16 / 56
+
+
+def test_render_uses_4x_supersampling():
+    """Quick 260423-o8z: render_overlay_image вызывает raw с size*4 (supersampling 4x)."""
+    import inspect
+    from client.ui import icon_compose
+    source = inspect.getsource(icon_compose.render_overlay_image)
+    assert "size * 4" in source, "supersampling должен быть 4x (quick-260423-o8z)"

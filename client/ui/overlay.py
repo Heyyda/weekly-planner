@@ -34,9 +34,9 @@ from client.ui.themes import ThemeManager
 
 logger = logging.getLogger(__name__)
 
-# DWM attribute (Win11 only) — per 03-RESEARCH Pattern 1
-DWMWA_WINDOW_CORNER_PREFERENCE = 33
-DWMWCP_ROUND = 2
+# Quick 260423-o8z: DWM_CORNER_PREFERENCE удалён — rounded corners полностью через
+# Pillow rounded mask (CORNER_RADIUS_FRAC=16/56). DwmSetWindowAttribute(ROUND)
+# клашился с transparent-color PNG canvas и рисовал чёрные артефакты по углам.
 
 # ==== D-19: pure ctypes multi-monitor support ====
 # Win32 structs и callback signature для EnumDisplayMonitors.
@@ -126,22 +126,16 @@ class OverlayManager:
         """Вызывается после INIT_DELAY_MS — настраивает borderless+topmost+DWM."""
         self._overlay.overrideredirect(True)
         self._overlay.attributes("-topmost", self._settings.on_top)
-        # Прозрачность углов (Win10 fallback для rounded — через transparentcolor canvas bg)
+        # Прозрачность углов: rounded corners полностью через Pillow mask
+        # (CORNER_RADIUS_FRAC=16/56). Черный bg canvas -> -transparentcolor
+        # делает фон окна прозрачным, Pillow RGBA клипает скруглённые края.
+        # Quick 260423-o8z: DWM DwmSetWindowAttribute(ROUND) удалён — клашился
+        # с transparentcolor и рисовал native-рамку поверх Pillow mask,
+        # что давало чёрные полоски по углам.
         try:
             self._overlay.attributes("-transparentcolor", "#000000")
         except tk.TclError:
             pass
-
-        # DWM rounded corners (Win11)
-        try:
-            hwnd = ctypes.windll.user32.GetParent(self._overlay.winfo_id())
-            value = ctypes.c_int(DWMWCP_ROUND)
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-                ctypes.byref(value), ctypes.sizeof(value),
-            )
-        except Exception:
-            pass  # Win10 fallback — Pillow RGBA углы уже прозрачные
 
         # Восстановить позицию (валидированную против virtual desktop)
         x, y = self._validate_position(self._settings.overlay_position)
