@@ -2,6 +2,15 @@
 
 Все значимые изменения. Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).
 
+## [0.7.1] — 2026-04-23
+
+### UX
+- **Overlay render fix** — убраны чёрные полоски по краям (alpha threshold после LANCZOS downscale), 4× supersampling, DWM corner preference отключён (конфликтовал с Pillow mask), больший радиус (CORNER_RADIUS_FRAC 12/56 → 16/56).
+- **Edge-drag cross-week navigation** — pill-кнопки «Пред/След неделя» заменены на более удобный edge-drag. Тяни задачу к левому/правому краю окна — при приближении (<60px) на ghost появляется стрелка «← Пред. неделя» / «След. неделя →», у края окна подсвечивается sage-полоска 4px. Drop в edge-зону — перенос ±7 дней.
+- **Hide from taskbar retry** — главное окно снова скрыто из taskbar и Alt+Tab, теперь через чистый Tk `wm_attributes('-toolwindow', True)` без ctypes/DWM clash (в отличие от первой попытки в 0.6.1).
+
+---
+
 ## [0.7.0] — 2026-04-22
 
 ### Новое
